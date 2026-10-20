@@ -14,7 +14,7 @@ O projeto tem como objetivos praticar e demonstrar:
 - Observabilidade e diagnóstico de incidentes.
 - Uso responsável de IA para apoiar investigações técnicas.
 
-O projeto está organizado em três repositórios independentes:
+O projeto está organizado em um monorepo com três pacotes principais:
 
 - `whosefault-docs`: documentação, especificações e decisões arquiteturais.
 - `whosefault-api`: backend desenvolvido com Node.js e TypeScript.
