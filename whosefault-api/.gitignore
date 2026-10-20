@@ -1,0 +1,22 @@
+
+# Dependências instaladas pelo npm
+node_modules/
+
+# Arquivos gerados pelo TypeScript
+dist/
+
+# Relatórios de testes
+coverage/
+
+# Variáveis de ambiente e credenciais
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Arquivos do sistema operacional
+.DS_Store
+Thumbs.db
