@@ -1,0 +1,10 @@
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    // vmThreads garante isolamento seguro e compatibilidade de resolucao de modulos no Windows/Node 24
+    pool: "vmThreads",
+    include: ["src/**/*.test.ts"],
+    exclude: ["dist/**", "node_modules/**"],
+  },
+});
