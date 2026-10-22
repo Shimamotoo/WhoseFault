@@ -1,2 +1,2 @@
 // src/domain/repositories/index.ts
-export * from './IOccurrenceRepository';
+export * from './IOccurrenceRepository.js';
