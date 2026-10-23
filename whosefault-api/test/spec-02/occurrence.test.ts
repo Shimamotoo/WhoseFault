@@ -15,7 +15,9 @@ import type { FastifyInstance } from 'fastify';
 let app: FastifyInstance;
 
 beforeAll(async () => {
-  app = createServer();
+  app = createServer({
+    occurrenceRepository,
+  });
   await app.ready();
 });
 

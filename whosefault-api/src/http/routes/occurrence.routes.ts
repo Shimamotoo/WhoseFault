@@ -3,17 +3,18 @@ import { listOccurrences } from '../../application/listOccurrences.js';
 import { createOccurrence } from '../../application/createOccurrence.js';
 import { updateOccurrence, OccurrenceNotFoundError } from '../../application/updateOccurrence.js';
 import { retryTitleGeneration } from '../../application/retryTitleGeneration.js';
-import { occurrenceRepository } from '../../infra/repositories/occurrenceRepository.js';
+import type { IOccurrenceRepository } from '../../domain/repositories/IOccurrenceRepository.js';
 import type { ITitleGenerator } from '../../domain/services/ITitleGenerator.js';
 import type { HttpMethod } from '../../domain/occurrence.js';
 
-interface OccurrenceRoutesOptions {
+export interface OccurrenceRoutesOptions {
+  occurrenceRepository: IOccurrenceRepository;
   titleGenerator: ITitleGenerator;
 }
 
 /** Rotas referentes a ocorrências */
 const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app, opts) => {
-  const { titleGenerator } = opts;
+  const { occurrenceRepository, titleGenerator } = opts;
 
   // ------------------------------------------------------------------ //
   // GET /occurrences — Listar ocorrências (SPEC-02)
