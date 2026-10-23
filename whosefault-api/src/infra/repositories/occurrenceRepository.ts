@@ -2,8 +2,8 @@
 import type { IOccurrenceRepository } from '../../domain/repositories/IOccurrenceRepository.js';
 import type { Occurrence } from '../../domain/occurrence.js';
 
-/** Implementação in-memory utilizada enquanto não há camada de persistência real */
-class InMemoryOccurrenceRepository implements IOccurrenceRepository {
+/** Implementação in-memory utilizada em testes de unidade e de rotas */
+export class InMemoryOccurrenceRepository implements IOccurrenceRepository {
   private store: Map<string, Occurrence> = new Map();
 
   async findAll(): Promise<Occurrence[]> {

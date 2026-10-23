@@ -8,6 +8,12 @@ import { SECRET_ALERT_MESSAGE } from '../../domain/services/ISecretDetector.js';
 describe('SPEC-03: Endpoints HTTP de Evidências (/api/occurrences/:occurrenceId/evidences)', () => {
   let occurrenceId: string;
 
+  const createTestServer = () =>
+    createServer({
+      occurrenceRepository,
+      evidenceRepository,
+    });
+
   beforeEach(async () => {
     occurrenceRepository.clear();
     evidenceRepository.clear();
@@ -23,7 +29,7 @@ describe('SPEC-03: Endpoints HTTP de Evidências (/api/occurrences/:occurrenceId
 
   it('CA-01, CA-03, CA-05 e CA-06: deve criar evidências dos 4 tipos via POST e retornar HTTP 201', async () => {
     // Arrange
-    const app = createServer();
+    const app = createTestServer();
 
     // Act
     const resReq = await app.inject({
@@ -75,7 +81,7 @@ describe('SPEC-03: Endpoints HTTP de Evidências (/api/occurrences/:occurrenceId
 
   it('CA-02 e CA-04: deve rejeitar com HTTP 400 requisições ou respostas inválidas', async () => {
     // Arrange
-    const app = createServer();
+    const app = createTestServer();
 
     // Act
     const invalidReq = await app.inject({
@@ -104,7 +110,7 @@ describe('SPEC-03: Endpoints HTTP de Evidências (/api/occurrences/:occurrenceId
 
   it('CA-08: deve listar as evidências no endpoint dedicado sem sobrecarregar o GET /api/occurrences/:id', async () => {
     // Arrange
-    const app = createServer();
+    const app = createTestServer();
     await app.inject({
       method: 'POST',
       url: `/api/occurrences/${occurrenceId}/evidences`,
@@ -137,7 +143,7 @@ describe('SPEC-03: Endpoints HTTP de Evidências (/api/occurrences/:occurrenceId
 
   it('CA-09: deve editar parcialmente uma evidência via PATCH e retornar HTTP 200', async () => {
     // Arrange
-    const app = createServer();
+    const app = createTestServer();
     const createRes = await app.inject({
       method: 'POST',
       url: `/api/occurrences/${occurrenceId}/evidences`,
@@ -169,7 +175,7 @@ describe('SPEC-03: Endpoints HTTP de Evidências (/api/occurrences/:occurrenceId
 
   it('CA-10, CA-11 e CA-12: deve exigir ?confirm=true no DELETE e excluir definitivamente apenas quando confirmado', async () => {
     // Arrange
-    const app = createServer();
+    const app = createTestServer();
     const createRes = await app.inject({
       method: 'POST',
       url: `/api/occurrences/${occurrenceId}/evidences`,
@@ -207,7 +213,7 @@ describe('SPEC-03: Endpoints HTTP de Evidências (/api/occurrences/:occurrenceId
 
   it('CA-13 e CA-14: deve rejeitar com HTTP 422 o envio de segredos na criação ou edição e retornar o alerta e a orientação de segurança sem vazar o segredo', async () => {
     // Arrange
-    const app = createServer();
+    const app = createTestServer();
     const rawSecret = 'sk-live-secret999888777666555444';
 
     // Act
@@ -235,7 +241,7 @@ describe('SPEC-03: Endpoints HTTP de Evidências (/api/occurrences/:occurrenceId
 
   it('CA-17: deve rejeitar upload de arquivos (multipart/form-data) com HTTP 400 na V1', async () => {
     // Arrange
-    const app = createServer();
+    const app = createTestServer();
 
     // Act
     const res = await app.inject({
@@ -250,5 +256,38 @@ describe('SPEC-03: Endpoints HTTP de Evidências (/api/occurrences/:occurrenceId
     // Assert
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toContain('Upload de arquivos não é permitido na V1');
+  });
+
+  it('CORS: deve responder adequadamente a requisições pre-flight OPTIONS de origens permitidas', async () => {
+    // Arrange
+    const app = createTestServer();
+
+    // Act
+    const resVite = await app.inject({
+      method: 'OPTIONS',
+      url: '/api/occurrences',
+      headers: {
+        Origin: 'http://localhost:5173',
+        'Access-Control-Request-Method': 'POST',
+      },
+    });
+
+    const resNext = await app.inject({
+      method: 'OPTIONS',
+      url: `/api/occurrences/${occurrenceId}/evidences`,
+      headers: {
+        Origin: 'http://localhost:3000',
+        'Access-Control-Request-Method': 'DELETE',
+      },
+    });
+
+    // Assert
+    expect(resVite.statusCode).toBe(204);
+    expect(resVite.headers['access-control-allow-origin']).toBe('http://localhost:5173');
+    expect(resVite.headers['access-control-allow-methods']).toContain('POST');
+
+    expect(resNext.statusCode).toBe(204);
+    expect(resNext.headers['access-control-allow-origin']).toBe('http://localhost:3000');
+    expect(resNext.headers['access-control-allow-methods']).toContain('DELETE');
   });
 });

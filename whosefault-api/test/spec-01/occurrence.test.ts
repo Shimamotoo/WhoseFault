@@ -27,7 +27,10 @@ const fakeTitleGenerator: ITitleGenerator = {
 let app: FastifyInstance;
 
 beforeAll(async () => {
-  app = createServer(fakeTitleGenerator);
+  app = createServer({
+    occurrenceRepository,
+    titleGenerator: fakeTitleGenerator,
+  });
   await app.ready();
 });
 

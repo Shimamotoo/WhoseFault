@@ -7,8 +7,8 @@ import {
   DeleteConfirmationRequiredError,
 } from '../../application/deleteEvidence.js';
 import { OccurrenceNotFoundError } from '../../application/updateOccurrence.js';
-import { occurrenceRepository } from '../../infra/repositories/occurrenceRepository.js';
-import { evidenceRepository } from '../../infra/repositories/evidenceRepository.js';
+import type { IOccurrenceRepository } from '../../domain/repositories/IOccurrenceRepository.js';
+import type { IEvidenceRepository } from '../../domain/repositories/IEvidenceRepository.js';
 import {
   SensitiveDataDetectedError,
   type ISecretDetector,
@@ -17,12 +17,15 @@ import { defaultSecretDetector } from '../../domain/services/secretDetector.js';
 import type { EvidenceType } from '../../domain/evidence.js';
 import type { HttpMethod } from '../../domain/occurrence.js';
 
-interface EvidenceRoutesOptions {
+export interface EvidenceRoutesOptions {
+  occurrenceRepository: IOccurrenceRepository;
+  evidenceRepository: IEvidenceRepository;
   secretDetector?: ISecretDetector;
 }
 
 /** Rotas referentes ao gerenciamento de evidências (SPEC-03) */
 const evidenceRoutes: FastifyPluginAsync<EvidenceRoutesOptions> = async (app, opts) => {
+  const { occurrenceRepository, evidenceRepository } = opts;
   const secretDetector = opts.secretDetector ?? defaultSecretDetector;
 
   // Bloqueio explícito de multipart/upload de arquivos na V1 (RF-12 / RN-15 / CA-17)
