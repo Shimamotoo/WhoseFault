@@ -9,17 +9,25 @@
     "typecheck": "tsc --noEmit",
     "start": "node dist/index.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:unit": "vitest run --exclude src/tests/infra",
+    "test:integration": "vitest run src/tests/infra",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@prisma/client": "^6.4.1",
     "fastify": "^5.12.7"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
+    "prisma": "^6.4.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"

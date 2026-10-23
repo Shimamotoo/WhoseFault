@@ -6,5 +6,7 @@ export default defineConfig({
     pool: "vmThreads",
     include: ["src/**/*.test.ts", "test/**/*.test.ts"],
     exclude: ["dist/**", "node_modules/**"],
+    // Executa arquivos em sequencia para evitar deadlocks de truncagem concorrente no banco relacional
+    fileParallelism: false,
   },
 });

@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EvidenceType {
+  HTTP_REQUEST
+  HTTP_RESPONSE
+  ERROR_LOG
+  MANUAL_NOTE
+}
+
+model Occurrence {
+  id          String     @id @default(uuid()) @db.Uuid
+  apiName     String     @map("api_name") @db.VarChar(255)
+  url         String     @db.VarChar(2048)
+  method      String     @db.VarChar(10)
+  description String?    @db.Text
+  title       String     @db.VarChar(255)
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  evidences   Evidence[]
+
+  @@map("occurrences")
+}
+
+model Evidence {
+  id           String       @id @default(uuid()) @db.Uuid
+  occurrenceId String       @map("occurrence_id") @db.Uuid
+  type         EvidenceType
+  method       String?      @db.VarChar(10)
+  url          String?      @db.VarChar(2048)
+  statusCode   Int?         @map("status_code")
+  headers      Json?        @db.JsonB
+  payload      String?      @db.Text
+  body         String?      @db.Text
+  content      String?      @db.Text
+  context      String?      @db.VarChar(2000)
+  notes        String?      @db.VarChar(2000)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  occurrence Occurrence @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+
+  @@index([occurrenceId])
+  @@map("evidences")
+}
