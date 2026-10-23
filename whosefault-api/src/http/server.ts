@@ -33,7 +33,22 @@ export function createServer(deps: ServerDependencies = {}) {
     secretDetector = defaultSecretDetector,
   } = deps;
 
-  const app = fastify({ logger: true });
+  const isDev = process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test';
+
+  const app = fastify({
+    logger: isDev
+      ? {
+          transport: {
+            target: 'pino-pretty',
+            options: {
+              colorize: true,
+              translateTime: 'HH:MM:ss Z',
+              ignore: 'pid,hostname',
+            },
+          },
+        }
+      : true,
+  });
 
   // habilita CORS para integração com o frontend React (whosefault-web)
   app.register(cors, {
