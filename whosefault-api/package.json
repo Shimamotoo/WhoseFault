@@ -10,8 +10,8 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:unit": "vitest run --exclude src/tests/infra",
-    "test:integration": "vitest run src/tests/infra",
+    "test:unit": "vitest run --exclude src/tests/infra/prisma*",
+    "test:integration": "vitest run src/tests/infra/prisma*",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
@@ -23,6 +23,7 @@
   "type": "module",
   "dependencies": {
     "@fastify/cors": "^11.3.1",
+    "@google/genai": "^2.31.0",
     "@prisma/client": "^6.4.1",
     "fastify": "^5.12.7"
   },
