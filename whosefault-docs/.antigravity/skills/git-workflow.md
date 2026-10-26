@@ -11,7 +11,7 @@ Ative esta skill quando o usuário pedir para salvar as alterações, fazer comm
 3. Garanta que arquivos de ambiente (`.env`, `.env.local`) ou segredos NÃO estejam na staging area.
 
 ### 2. Formatação da Mensagem (Conventional Commits)
-Gere uma mensagem clara seguindo o padrão:
+Gere uma mensagem em português claro seguindo o padrão:
 - `feat:` para novas funcionalidades.
 - `fix:` para correção de bugs.
 - `docs:` para alterações em documentação/specs.
