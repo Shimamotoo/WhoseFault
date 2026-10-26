@@ -11,11 +11,53 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-whosefault}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-whosefault}" ]
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - whosefault-network
+
+  api:
+    build:
+      context: ./whosefault-api
+      dockerfile: Dockerfile
+    container_name: whosefault-api
+    restart: unless-stopped
+    env_file:
+      - ./whosefault-api/.env
+    environment:
+      - PORT=3333
+      - HOST=0.0.0.0
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-whosefault}?schema=public
+      - RUN_MIGRATIONS=true
+    ports:
+      - "${API_PORT:-3333}:3333"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - whosefault-network
+
+  web:
+    build:
+      context: ./whosefault-web
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=/api
+    container_name: whosefault-web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    networks:
+      - whosefault-network
 
 volumes:
   postgres_data:
     driver: local
+
+networks:
+  whosefault-network:
+    driver: bridge
