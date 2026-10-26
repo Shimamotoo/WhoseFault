@@ -9,6 +9,7 @@ import {
 import { OccurrenceNotFoundError } from '../../application/updateOccurrence.js';
 import type { IOccurrenceRepository } from '../../domain/repositories/IOccurrenceRepository.js';
 import type { IEvidenceRepository } from '../../domain/repositories/IEvidenceRepository.js';
+import type { IDiagnosisRepository } from '../../domain/repositories/IDiagnosisRepository.js';
 import {
   SensitiveDataDetectedError,
   type ISecretDetector,
@@ -20,15 +21,16 @@ import type { HttpMethod } from '../../domain/occurrence.js';
 export interface EvidenceRoutesOptions {
   occurrenceRepository: IOccurrenceRepository;
   evidenceRepository: IEvidenceRepository;
+  diagnosisRepository?: IDiagnosisRepository;
   secretDetector?: ISecretDetector;
 }
 
 /** Rotas referentes ao gerenciamento de evidências (SPEC-03) */
 const evidenceRoutes: FastifyPluginAsync<EvidenceRoutesOptions> = async (app, opts) => {
-  const { occurrenceRepository, evidenceRepository } = opts;
+  const { occurrenceRepository, evidenceRepository, diagnosisRepository } = opts;
   const secretDetector = opts.secretDetector ?? defaultSecretDetector;
 
-  // Bloqueio explícito de multipart/upload de arquivos na V1 (RF-12 / RN-15 / CA-17)
+  // Bloqueio explícito de multipart/form-data (upload de arquivos) na V1 (RF-12 / RN-15 / CA-17)
   app.addContentTypeParser('multipart/form-data', (_req, _payload, done) => {
     done(
       new Error('O sistema aceita somente conteúdo textual. Upload de arquivos não é permitido na V1.'),
@@ -88,6 +90,7 @@ const evidenceRoutes: FastifyPluginAsync<EvidenceRoutesOptions> = async (app, op
         occurrenceRepository,
         evidenceRepository,
         secretDetector,
+        diagnosisRepository,
       );
 
       return reply.code(201).send(result);
@@ -141,6 +144,7 @@ const evidenceRoutes: FastifyPluginAsync<EvidenceRoutesOptions> = async (app, op
         occurrenceRepository,
         evidenceRepository,
         secretDetector,
+        diagnosisRepository,
       );
 
       return reply.code(200).send(result);
@@ -183,6 +187,7 @@ const evidenceRoutes: FastifyPluginAsync<EvidenceRoutesOptions> = async (app, op
         },
         occurrenceRepository,
         evidenceRepository,
+        diagnosisRepository,
       );
 
       return reply.code(200).send({ message: 'Evidência excluída definitivamente.' });

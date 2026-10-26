@@ -1,7 +1,11 @@
 import { Occurrence } from '../domain/occurrence.js';
 import type { IOccurrenceRepository } from '../domain/repositories/IOccurrenceRepository.js';
+import type { IDiagnosisRepository } from '../domain/repositories/IDiagnosisRepository.js';
 import type { ITitleGenerator } from '../domain/services/ITitleGenerator.js';
 import type { HttpMethod } from '../domain/occurrence.js';
+import { InMemoryOccurrenceRepository } from '../infra/repositories/occurrenceRepository.js';
+import { diagnosisRepository as inMemoryDiagnosisRepository } from '../infra/repositories/diagnosisRepository.js';
+import { prismaDiagnosisRepository } from '../infra/repositories/prismaDiagnosisRepository.js';
 
 export interface IUpdateOccurrenceInput {
   id: string;
@@ -42,6 +46,7 @@ export async function updateOccurrence(
   input: IUpdateOccurrenceInput,
   repo: IOccurrenceRepository,
   titleGenerator: ITitleGenerator,
+  diagnosisRepo?: IDiagnosisRepository,
 ): Promise<IUpdateOccurrenceResult> {
   const existing = await repo.findById(input.id);
   if (!existing) {
@@ -77,10 +82,18 @@ export async function updateOccurrence(
     description: newDescription,
     title: newTitle,
     createdAt: existing.createdAt,
-    updatedAt: new Date(),
+    updatedAt: new Date(Math.max(Date.now(), existing.updatedAt.getTime() + 1)),
   });
 
   await repo.update(updated);
+
+  const resolvedDiagnosisRepo =
+    diagnosisRepo ??
+    (repo instanceof InMemoryOccurrenceRepository
+      ? inMemoryDiagnosisRepository
+      : prismaDiagnosisRepository);
+
+  await resolvedDiagnosisRepo.markAsOutdated(updated.id);
 
   return {
     id: updated.id,

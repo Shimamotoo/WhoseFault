@@ -2,19 +2,28 @@ import fastify from 'fastify';
 import cors from '@fastify/cors';
 import occurrenceRoutes from './routes/occurrence.routes.js';
 import evidenceRoutes from './routes/evidence.routes.js';
+import diagnosisRoutes from './routes/diagnosis.routes.js';
 import type { IOccurrenceRepository } from '../domain/repositories/IOccurrenceRepository.js';
 import type { IEvidenceRepository } from '../domain/repositories/IEvidenceRepository.js';
+import type { IDiagnosisRepository } from '../domain/repositories/IDiagnosisRepository.js';
+import { InMemoryOccurrenceRepository } from '../infra/repositories/occurrenceRepository.js';
+import { diagnosisRepository as inMemoryDiagnosisRepository } from '../infra/repositories/diagnosisRepository.js';
 import { prismaOccurrenceRepository } from '../infra/repositories/prismaOccurrenceRepository.js';
 import { prismaEvidenceRepository } from '../infra/repositories/prismaEvidenceRepository.js';
+import { prismaDiagnosisRepository } from '../infra/repositories/prismaDiagnosisRepository.js';
 import type { ITitleGenerator } from '../domain/services/ITitleGenerator.js';
 import { StubTitleGenerator } from '../infra/ai/stubTitleGenerator.js';
+import type { IDiagnosisGenerator } from '../domain/services/IDiagnosisGenerator.js';
+import { StubDiagnosisGenerator } from '../infra/ai/stubDiagnosisGenerator.js';
 import type { ISecretDetector } from '../domain/services/ISecretDetector.js';
 import { defaultSecretDetector } from '../domain/services/secretDetector.js';
 
 export interface ServerDependencies {
   occurrenceRepository?: IOccurrenceRepository;
   evidenceRepository?: IEvidenceRepository;
+  diagnosisRepository?: IDiagnosisRepository;
   titleGenerator?: ITitleGenerator;
+  diagnosisGenerator?: IDiagnosisGenerator;
   secretDetector?: ISecretDetector;
 }
 
@@ -22,14 +31,17 @@ export interface ServerDependencies {
  * Cria e configura a aplicação Fastify.
  * Mantém a camada de domínio livre de dependências externas.
  *
- * @param deps - Dependências injetáveis (repositórios, gerador de título e detector de segredos).
- *               Por padrão, utiliza os repositórios Prisma (PostgreSQL), StubTitleGenerator e defaultSecretDetector.
+ * @param deps - Dependências injetáveis (repositórios, geradores de IA e detector de segredos).
  */
 export function createServer(deps: ServerDependencies = {}) {
   const {
     occurrenceRepository = prismaOccurrenceRepository,
     evidenceRepository = prismaEvidenceRepository,
+    diagnosisRepository = occurrenceRepository instanceof InMemoryOccurrenceRepository
+      ? inMemoryDiagnosisRepository
+      : prismaDiagnosisRepository,
     titleGenerator = new StubTitleGenerator(),
+    diagnosisGenerator = new StubDiagnosisGenerator(),
     secretDetector = defaultSecretDetector,
   } = deps;
 
@@ -61,11 +73,21 @@ export function createServer(deps: ServerDependencies = {}) {
     prefix: '/api',
     occurrenceRepository,
     titleGenerator,
+    diagnosisRepository,
   });
   app.register(evidenceRoutes, {
     prefix: '/api',
     occurrenceRepository,
     evidenceRepository,
+    diagnosisRepository,
+    secretDetector,
+  });
+  app.register(diagnosisRoutes, {
+    prefix: '/api',
+    occurrenceRepository,
+    evidenceRepository,
+    diagnosisRepository,
+    diagnosisGenerator,
     secretDetector,
   });
 

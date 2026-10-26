@@ -24,8 +24,23 @@ model Occurrence {
   createdAt   DateTime   @default(now()) @map("created_at")
   updatedAt   DateTime   @updatedAt @map("updated_at")
   evidences   Evidence[]
+  diagnosis   Diagnosis?
 
   @@map("occurrences")
+}
+
+model Diagnosis {
+  id           String     @id @default(uuid()) @db.Uuid
+  occurrenceId String     @unique @map("occurrence_id") @db.Uuid
+  context      Json       @db.JsonB
+  result       Json       @db.JsonB
+  isOutdated   Boolean    @default(false) @map("is_outdated")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  occurrence Occurrence @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+
+  @@map("diagnoses")
 }
 
 model Evidence {

@@ -2,8 +2,12 @@ import { Evidence, type EvidenceType } from '../domain/evidence.js';
 import type { HttpMethod } from '../domain/occurrence.js';
 import type { IOccurrenceRepository } from '../domain/repositories/IOccurrenceRepository.js';
 import type { IEvidenceRepository } from '../domain/repositories/IEvidenceRepository.js';
+import type { IDiagnosisRepository } from '../domain/repositories/IDiagnosisRepository.js';
 import type { ISecretDetector } from '../domain/services/ISecretDetector.js';
 import { defaultSecretDetector } from '../domain/services/secretDetector.js';
+import { InMemoryOccurrenceRepository } from '../infra/repositories/occurrenceRepository.js';
+import { diagnosisRepository as inMemoryDiagnosisRepository } from '../infra/repositories/diagnosisRepository.js';
+import { prismaDiagnosisRepository } from '../infra/repositories/prismaDiagnosisRepository.js';
 import { OccurrenceNotFoundError } from './updateOccurrence.js';
 
 export interface ICreateEvidenceInput {
@@ -65,6 +69,7 @@ export async function createEvidence(
   occurrenceRepo: IOccurrenceRepository,
   evidenceRepo: IEvidenceRepository,
   secretDetector: ISecretDetector = defaultSecretDetector,
+  diagnosisRepo?: IDiagnosisRepository,
 ): Promise<IEvidenceResult> {
   const occurrence = await occurrenceRepo.findById(input.occurrenceId);
   if (!occurrence) {
@@ -89,6 +94,14 @@ export async function createEvidence(
   );
 
   await evidenceRepo.save(evidence);
+
+  const resolvedDiagnosisRepo =
+    diagnosisRepo ??
+    (occurrenceRepo instanceof InMemoryOccurrenceRepository
+      ? inMemoryDiagnosisRepository
+      : prismaDiagnosisRepository);
+
+  await resolvedDiagnosisRepo.markAsOutdated(input.occurrenceId);
 
   return mapEvidenceToResult(evidence);
 }

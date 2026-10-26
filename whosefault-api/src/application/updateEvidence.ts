@@ -2,8 +2,12 @@ import { Evidence } from '../domain/evidence.js';
 import type { HttpMethod } from '../domain/occurrence.js';
 import type { IOccurrenceRepository } from '../domain/repositories/IOccurrenceRepository.js';
 import type { IEvidenceRepository } from '../domain/repositories/IEvidenceRepository.js';
+import type { IDiagnosisRepository } from '../domain/repositories/IDiagnosisRepository.js';
 import type { ISecretDetector } from '../domain/services/ISecretDetector.js';
 import { defaultSecretDetector } from '../domain/services/secretDetector.js';
+import { InMemoryOccurrenceRepository } from '../infra/repositories/occurrenceRepository.js';
+import { diagnosisRepository as inMemoryDiagnosisRepository } from '../infra/repositories/diagnosisRepository.js';
+import { prismaDiagnosisRepository } from '../infra/repositories/prismaDiagnosisRepository.js';
 import { OccurrenceNotFoundError } from './updateOccurrence.js';
 import { mapEvidenceToResult, type IEvidenceResult } from './createEvidence.js';
 
@@ -39,6 +43,7 @@ export async function updateEvidence(
   occurrenceRepo: IOccurrenceRepository,
   evidenceRepo: IEvidenceRepository,
   secretDetector: ISecretDetector = defaultSecretDetector,
+  diagnosisRepo?: IDiagnosisRepository,
 ): Promise<IEvidenceResult> {
   const occurrence = await occurrenceRepo.findById(input.occurrenceId);
   if (!occurrence) {
@@ -68,12 +73,20 @@ export async function updateEvidence(
       context: 'context' in input && input.context !== undefined ? input.context : existing.context,
       notes: 'notes' in input && input.notes !== undefined ? input.notes : existing.notes,
       createdAt: existing.createdAt,
-      updatedAt: new Date(),
+      updatedAt: new Date(Math.max(Date.now(), existing.updatedAt.getTime() + 1)),
     },
     secretDetector,
   );
 
   await evidenceRepo.update(updated);
+
+  const resolvedDiagnosisRepo =
+    diagnosisRepo ??
+    (occurrenceRepo instanceof InMemoryOccurrenceRepository
+      ? inMemoryDiagnosisRepository
+      : prismaDiagnosisRepository);
+
+  await resolvedDiagnosisRepo.markAsOutdated(input.occurrenceId);
 
   return mapEvidenceToResult(updated);
 }

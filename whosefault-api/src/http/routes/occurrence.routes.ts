@@ -4,17 +4,19 @@ import { createOccurrence } from '../../application/createOccurrence.js';
 import { updateOccurrence, OccurrenceNotFoundError } from '../../application/updateOccurrence.js';
 import { retryTitleGeneration } from '../../application/retryTitleGeneration.js';
 import type { IOccurrenceRepository } from '../../domain/repositories/IOccurrenceRepository.js';
+import type { IDiagnosisRepository } from '../../domain/repositories/IDiagnosisRepository.js';
 import type { ITitleGenerator } from '../../domain/services/ITitleGenerator.js';
 import type { HttpMethod } from '../../domain/occurrence.js';
 
 export interface OccurrenceRoutesOptions {
   occurrenceRepository: IOccurrenceRepository;
   titleGenerator: ITitleGenerator;
+  diagnosisRepository?: IDiagnosisRepository;
 }
 
 /** Rotas referentes a ocorrências */
 const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app, opts) => {
-  const { occurrenceRepository, titleGenerator } = opts;
+  const { occurrenceRepository, titleGenerator, diagnosisRepository } = opts;
 
   // ------------------------------------------------------------------ //
   // GET /occurrences — Listar ocorrências (SPEC-02)
@@ -101,6 +103,7 @@ const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app
         { id, apiName, url, method, description },
         occurrenceRepository,
         titleGenerator,
+        diagnosisRepository,
       );
 
       return reply.code(200).send(result);

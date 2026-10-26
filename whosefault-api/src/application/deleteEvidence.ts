@@ -1,5 +1,9 @@
 import type { IOccurrenceRepository } from '../domain/repositories/IOccurrenceRepository.js';
 import type { IEvidenceRepository } from '../domain/repositories/IEvidenceRepository.js';
+import type { IDiagnosisRepository } from '../domain/repositories/IDiagnosisRepository.js';
+import { InMemoryOccurrenceRepository } from '../infra/repositories/occurrenceRepository.js';
+import { diagnosisRepository as inMemoryDiagnosisRepository } from '../infra/repositories/diagnosisRepository.js';
+import { prismaDiagnosisRepository } from '../infra/repositories/prismaDiagnosisRepository.js';
 import { OccurrenceNotFoundError } from './updateOccurrence.js';
 import { EvidenceNotFoundError } from './updateEvidence.js';
 
@@ -29,6 +33,7 @@ export async function deleteEvidence(
   input: IDeleteEvidenceInput,
   occurrenceRepo: IOccurrenceRepository,
   evidenceRepo: IEvidenceRepository,
+  diagnosisRepo?: IDiagnosisRepository,
 ): Promise<void> {
   if (input.confirmed !== true) {
     throw new DeleteConfirmationRequiredError();
@@ -45,4 +50,12 @@ export async function deleteEvidence(
   }
 
   await evidenceRepo.delete(existing.id);
+
+  const resolvedDiagnosisRepo =
+    diagnosisRepo ??
+    (occurrenceRepo instanceof InMemoryOccurrenceRepository
+      ? inMemoryDiagnosisRepository
+      : prismaDiagnosisRepository);
+
+  await resolvedDiagnosisRepo.markAsOutdated(input.occurrenceId);
 }
