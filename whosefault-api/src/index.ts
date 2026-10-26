@@ -1,7 +1,12 @@
 import { createServer } from './http/server.js';
-
 import { GeminiTitleGenerator } from './infra/ai/geminiTitleGenerator.js';
 import { GeminiDiagnosisAdapter } from './infra/ai/geminiDiagnosisAdapter.js';
+
+try {
+  process.loadEnvFile?.();
+} catch {
+  // Ignora caso o arquivo .env não exista no ambiente atual
+}
 
 const app = createServer({
   titleGenerator: new GeminiTitleGenerator(),
