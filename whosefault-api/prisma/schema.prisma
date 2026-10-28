@@ -14,8 +14,22 @@ enum EvidenceType {
   MANUAL_NOTE
 }
 
+model User {
+  id          String       @id @default(uuid()) @db.Uuid
+  firebaseUid String       @unique @map("firebase_uid") @db.VarChar(128)
+  email       String?      @db.VarChar(255)
+  name        String?      @db.VarChar(255)
+  isAnonymous Boolean      @default(false) @map("is_anonymous")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  occurrences Occurrence[]
+
+  @@map("users")
+}
+
 model Occurrence {
   id          String     @id @default(uuid()) @db.Uuid
+  userId      String?    @map("user_id") @db.Uuid
   apiName     String     @map("api_name") @db.VarChar(255)
   url         String     @db.VarChar(2048)
   method      String     @db.VarChar(10)
@@ -25,7 +39,9 @@ model Occurrence {
   updatedAt   DateTime   @updatedAt @map("updated_at")
   evidences   Evidence[]
   diagnosis   Diagnosis?
+  user        User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("occurrences")
 }
 

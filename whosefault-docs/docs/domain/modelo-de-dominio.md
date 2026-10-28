@@ -1,8 +1,8 @@
 # WhoseFault — Modelo de Domínio
 
-**Versão:** 1.0  
-**Status:** Consolidado para a etapa de modelagem de domínio  
-**Escopo:** V1
+**Versão:** 1.1  
+**Status:** Atualizado (Autenticação, Identidade e Isolamento)  
+**Escopo:** V1 + SPEC-05/SPEC-06
 
 ## 1. Objetivo
 
@@ -12,6 +12,8 @@ O objetivo do modelo de domínio é definir os conceitos centrais do sistema, su
 
 O domínio deve garantir que:
 
+- Toda ocorrência esteja estritamente vinculada a um usuário (identidade), assegurando o isolamento multi-inquilino.
+- Usuários anônimos (Modo Visitante) inativos por mais de 30 dias sejam expurgados juntamente com todas as suas ocorrências, evidências e diagnósticos.
 - Uma ocorrência possa ser registrada mesmo sem evidências completas.
 - As evidências sejam gerenciadas independentemente da ocorrência.
 - O diagnóstico por IA seja persistido e relacionado à ocorrência.
@@ -22,11 +24,12 @@ O domínio deve garantir que:
 
 ## 2. Conceitos do domínio
 
-A V1 possui três conceitos centrais:
+O modelo possui quatro conceitos centrais:
 
-1. **Ocorrência:** representa um problema ou situação que o usuário deseja investigar.
-2. **Evidência:** representa uma informação técnica ou observação que ajuda a investigar uma ocorrência.
-3. **Diagnóstico por IA:** representa uma análise das informações disponíveis sobre uma ocorrência em determinado momento.
+1. **Usuário (Identidade):** representa o desenvolvedor ou visitante autenticado no sistema, responsável por suas investigações e com controle de ciclo de vida da conta.
+2. **Ocorrência:** representa um problema ou situação que o usuário deseja investigar.
+3. **Evidência:** representa uma informação técnica ou observação que ajuda a investigar uma ocorrência.
+4. **Diagnóstico por IA:** representa uma análise das informações disponíveis sobre uma ocorrência em determinado momento.
 
 Esses conceitos são relacionados, mas possuem responsabilidades distintas.
 
@@ -53,6 +56,7 @@ Ela também funciona como referência para as evidências e para o diagnóstico 
 - Informações técnicas complementares, opcionais.
 - Data e hora de criação.
 - Data e hora da última atualização.
+- Identificador do usuário criador (userId).
 
 ### 3.3. Regras de negócio
 

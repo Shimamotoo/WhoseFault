@@ -3,6 +3,7 @@ import type { Occurrence } from '../domain/occurrence.js';
 
 export interface IListOccurrencesResult {
   id: string;
+  userId?: string | null;
   apiName: string;
   method: string;
   url: string;
@@ -12,16 +13,19 @@ export interface IListOccurrencesResult {
 
 /**
  * Lista ocorrências ordenadas por data de criação (mais recente primeiro).
+ * Opcionalmente filtra pelo usuário logado.
  */
 export async function listOccurrences(
   repo: IOccurrenceRepository,
+  userId?: string,
 ): Promise<IListOccurrencesResult[]> {
-  const occurrences: Occurrence[] = await repo.findAll();
+  const occurrences: Occurrence[] = await repo.findAll(userId);
   // Garantir ordenação decrescente
   const sorted = occurrences
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .map((o) => ({
       id: o.id,
+      userId: o.userId,
       apiName: o.apiName,
       method: o.method,
       url: o.url,

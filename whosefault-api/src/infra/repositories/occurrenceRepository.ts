@@ -6,8 +6,12 @@ import type { Occurrence } from '../../domain/occurrence.js';
 export class InMemoryOccurrenceRepository implements IOccurrenceRepository {
   private store: Map<string, Occurrence> = new Map();
 
-  async findAll(): Promise<Occurrence[]> {
-    return Array.from(this.store.values());
+  async findAll(userId?: string): Promise<Occurrence[]> {
+    const all = Array.from(this.store.values());
+    if (userId) {
+      return all.filter((occ) => occ.userId === userId);
+    }
+    return all;
   }
 
   async findById(id: string): Promise<Occurrence | null> {

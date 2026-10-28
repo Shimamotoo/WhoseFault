@@ -1,5 +1,11 @@
 # SPEC-03 — Gerenciar evidências
 
+> [!NOTE]
+> **Status:** Entregue e Consolidado na V1  
+> **Observação pós-V1:** O escopo original da V1 não contemplava autenticação de usuários; a associação de ocorrências a usuários autenticados e o isolamento multi-inquilino foram introduzidos nas especificações SPEC-05 e SPEC-06.
+
+
+
 ## 1. Objetivo
 
 Permitir que o desenvolvedor registre, consulte, edite e remova evidências associadas a uma ocorrência do WhoseFault.

@@ -12,6 +12,7 @@ export type HttpMethod = (typeof HTTP_METHODS)[number];
 
 export interface OccurrenceProps {
   id?: string;
+  userId?: string | null;
   apiName: string;
   url: string;
   method: HttpMethod;
@@ -23,6 +24,7 @@ export interface OccurrenceProps {
 
 export class Occurrence {
   readonly id: string;
+  readonly userId?: string | null;
   readonly apiName: string;
   readonly url: string;
   readonly method: HttpMethod;
@@ -33,6 +35,7 @@ export class Occurrence {
 
   private constructor(props: {
     id: string;
+    userId?: string | null;
     apiName: string;
     url: string;
     method: HttpMethod;
@@ -42,6 +45,7 @@ export class Occurrence {
     updatedAt: Date;
   }) {
     this.id = props.id;
+    this.userId = props.userId;
     this.apiName = props.apiName;
     this.url = props.url;
     this.method = props.method;
@@ -87,6 +91,7 @@ export class Occurrence {
 
     return new Occurrence({
       id,
+      userId: props.userId ?? null,
       apiName: props.apiName.trim(),
       url: props.url.trim(),
       method: props.method,

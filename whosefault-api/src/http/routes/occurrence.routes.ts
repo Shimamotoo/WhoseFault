@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import { listOccurrences } from '../../application/listOccurrences.js';
 import { createOccurrence } from '../../application/createOccurrence.js';
 import { updateOccurrence, OccurrenceNotFoundError } from '../../application/updateOccurrence.js';
@@ -12,18 +12,22 @@ export interface OccurrenceRoutesOptions {
   occurrenceRepository: IOccurrenceRepository;
   titleGenerator: ITitleGenerator;
   diagnosisRepository?: IDiagnosisRepository;
+  authHook?: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 }
 
 /** Rotas referentes a ocorrências */
 const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app, opts) => {
-  const { occurrenceRepository, titleGenerator, diagnosisRepository } = opts;
+  const { occurrenceRepository, titleGenerator, diagnosisRepository, authHook } = opts;
+
+  const preHandler = authHook ? [authHook] : [];
 
   // ------------------------------------------------------------------ //
-  // GET /occurrences — Listar ocorrências (SPEC-02)
+  // GET /occurrences — Listar ocorrências (SPEC-02 e SPEC-06)
   // ------------------------------------------------------------------ //
-  app.get('/occurrences', async (req, reply) => {
+  app.get('/occurrences', { preHandler }, async (req, reply) => {
     try {
-      const result = await listOccurrences(occurrenceRepository);
+      const userId = req.user?.id;
+      const result = await listOccurrences(occurrenceRepository, userId);
       if (result.length === 0) {
         return reply.code(200).send({
           message: 'Nenhuma ocorrência cadastrada.',
@@ -38,16 +42,22 @@ const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app
   });
 
   // ------------------------------------------------------------------ //
-  // GET /occurrences/:id — Detalhar ocorrência (SPEC-02 CA-05)
+  // GET /occurrences/:id — Detalhar ocorrência (SPEC-02 CA-05 e SPEC-06)
   // ------------------------------------------------------------------ //
-  app.get('/occurrences/:id', async (req, reply) => {
+  app.get('/occurrences/:id', { preHandler }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const occ = await occurrenceRepository.findById(id);
     if (!occ) {
       return reply.code(404).send({ error: 'Ocorrência não encontrada.' });
     }
+
+    if (req.user?.id && occ.userId && occ.userId !== req.user.id) {
+      return reply.code(404).send({ error: 'Ocorrência não encontrada.' });
+    }
+
     return reply.code(200).send({
       id: occ.id,
+      userId: occ.userId,
       apiName: occ.apiName,
       method: occ.method,
       url: occ.url,
@@ -59,9 +69,9 @@ const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app
   });
 
   // ------------------------------------------------------------------ //
-  // POST /occurrences — Criar ocorrência (SPEC-01 CA-01 a CA-07, CA-13)
+  // POST /occurrences — Criar ocorrência (SPEC-01 e SPEC-06)
   // ------------------------------------------------------------------ //
-  app.post('/occurrences', async (req, reply) => {
+  app.post('/occurrences', { preHandler }, async (req, reply) => {
     try {
       const { apiName, url, method, description } = req.body as {
         apiName: string;
@@ -71,7 +81,13 @@ const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app
       };
 
       const result = await createOccurrence(
-        { apiName, url, method, description },
+        {
+          userId: req.user?.id,
+          apiName,
+          url,
+          method,
+          description,
+        },
         occurrenceRepository,
         titleGenerator,
       );
@@ -89,7 +105,7 @@ const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app
   // ------------------------------------------------------------------ //
   // PATCH /occurrences/:id — Editar ocorrência (SPEC-01 CA-08 a CA-11)
   // ------------------------------------------------------------------ //
-  app.patch('/occurrences/:id', async (req, reply) => {
+  app.patch('/occurrences/:id', { preHandler }, async (req, reply) => {
     const { id } = req.params as { id: string };
     try {
       const { apiName, url, method, description } = req.body as {
@@ -120,12 +136,16 @@ const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app
   });
 
   // ------------------------------------------------------------------ //
-  // POST /occurrences/:id/retry-title — Nova tentativa de título (SPEC-01 CA-12)
+  // POST /occurrences/:id/retry-title — Tentar novamente gerar título (SPEC-01 CA-12)
   // ------------------------------------------------------------------ //
-  app.post('/occurrences/:id/retry-title', async (req, reply) => {
+  app.post('/occurrences/:id/retry-title', { preHandler }, async (req, reply) => {
     const { id } = req.params as { id: string };
     try {
-      const result = await retryTitleGeneration(id, occurrenceRepository, titleGenerator);
+      const result = await retryTitleGeneration(
+        id,
+        occurrenceRepository,
+        titleGenerator,
+      );
       return reply.code(200).send(result);
     } catch (err) {
       if (err instanceof OccurrenceNotFoundError) {
@@ -135,7 +155,7 @@ const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app
         return reply.code(400).send({ error: err.message });
       }
       req.log.error(err);
-      return reply.code(500).send({ error: 'Falha ao tentar gerar título.' });
+      return reply.code(500).send({ error: 'Falha ao gerar título.' });
     }
   });
 };

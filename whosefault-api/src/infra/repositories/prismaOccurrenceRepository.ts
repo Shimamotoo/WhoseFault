@@ -6,14 +6,16 @@ import { prisma as defaultPrisma } from '../prisma/client.js';
 export class PrismaOccurrenceRepository implements IOccurrenceRepository {
   constructor(private readonly db: PrismaClient = defaultPrisma) {}
 
-  async findAll(): Promise<Occurrence[]> {
+  async findAll(userId?: string): Promise<Occurrence[]> {
     const records = await this.db.occurrence.findMany({
+      where: userId ? { userId } : undefined,
       orderBy: { createdAt: 'desc' },
     });
 
     return records.map((record) =>
       Occurrence.create({
         id: record.id,
+        userId: record.userId,
         apiName: record.apiName,
         url: record.url,
         method: record.method as HttpMethod,
@@ -36,6 +38,7 @@ export class PrismaOccurrenceRepository implements IOccurrenceRepository {
 
     return Occurrence.create({
       id: record.id,
+      userId: record.userId,
       apiName: record.apiName,
       url: record.url,
       method: record.method as HttpMethod,
@@ -50,6 +53,7 @@ export class PrismaOccurrenceRepository implements IOccurrenceRepository {
     await this.db.occurrence.create({
       data: {
         id: occurrence.id,
+        userId: occurrence.userId ?? null,
         apiName: occurrence.apiName,
         url: occurrence.url,
         method: occurrence.method,

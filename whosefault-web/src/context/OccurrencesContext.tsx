@@ -13,6 +13,7 @@ import type {
   Occurrence,
 } from "@/types/domain";
 import * as api from "@/services/api";
+import { useAuth } from "@/context/AuthContext";
 
 export interface CreateOccurrenceInput {
   apiName: string;
@@ -71,6 +72,7 @@ const OccurrencesContext = createContext<OccurrencesContextValue | undefined>(
 export const OccurrencesProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
+  const { user, profile } = useAuth();
   const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
   const [evidencesByOccurrence, setEvidencesByOccurrence] = useState<
     Record<string, Evidence[]>
@@ -126,7 +128,11 @@ export const OccurrencesProvider: React.FC<{ children: React.ReactNode }> = ({
         }),
       );
     } catch (err) {
-      setApiStatus("offline");
+      if (err instanceof api.ApiError) {
+        setApiStatus("online");
+      } else {
+        setApiStatus("offline");
+      }
       setError(
         err instanceof Error
           ? err.message
@@ -138,8 +144,15 @@ export const OccurrencesProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   useEffect(() => {
-    void refreshOccurrences();
-  }, [refreshOccurrences]);
+    if (user) {
+      void refreshOccurrences();
+    } else {
+      setOccurrences([]);
+      setEvidencesByOccurrence({});
+      setDiagnosesByOccurrence({});
+      setIsLoading(false);
+    }
+  }, [user, profile?.id, refreshOccurrences]);
 
   const loadOccurrenceDetails = useCallback(async (occurrenceId: string) => {
     try {

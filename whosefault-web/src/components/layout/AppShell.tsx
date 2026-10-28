@@ -1,22 +1,45 @@
-import React from "react";
-import { Link, Outlet, useLocation } from "react-router-dom";
+import React, { useState } from "react";
+import { Link, Navigate, Outlet, useLocation } from "react-router-dom";
 import { useOccurrences } from "@/context/OccurrencesContext";
+import { useAuth } from "@/context/AuthContext";
 import {
-  Activity,
   ChevronRight,
-  Database,
   Layers,
-  RefreshCw,
-  ShieldCheck,
+  LogOut,
   Terminal,
+  User as UserIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { LoginDialog } from "@/components/auth/LoginDialog";
 
 export const AppShell: React.FC = () => {
   const location = useLocation();
-  const { occurrences, apiStatus, isLoading, refreshOccurrences } =
-    useOccurrences();
+  const { occurrences } = useOccurrences();
+  const { user, loading: authLoading, signOut } = useAuth();
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 rounded-lg bg-zinc-100 text-zinc-950 flex items-center justify-center animate-pulse">
+            <Terminal className="h-4 w-4 stroke-[2.2]" />
+          </div>
+          <span className="font-mono text-xs text-zinc-400">
+            Carregando ambiente...
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // Redireciona para /login caso não haja usuário autenticado
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
 
   // Identifica se estamos em /occurrences/:id para construir o Breadcrumb dinâmico
   const pathSegments = location.pathname.split("/").filter(Boolean);
@@ -31,10 +54,20 @@ export const AppShell: React.FC = () => {
     ? occurrences.find((o) => o.id === occurrenceId)
     : undefined;
 
+  const isAnonymous = user.isAnonymous;
+  const showPhoto = Boolean(user.photoURL) && !avatarError;
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col md:flex-row selection:bg-zinc-800">
-      {/* Sidebar Minimalista estilo DevTools (Vercel / Sentry) */}
-      <aside className="w-full md:w-64 shrink-0 border-b md:border-b-0 md:border-r border-zinc-800/80 bg-zinc-950/95 flex flex-col justify-between">
+      {/* Diálogo para Vincular Conta Google quando em Modo Visitante */}
+      <LoginDialog
+        open={loginModalOpen}
+        onOpenChange={setLoginModalOpen}
+        canClose={true}
+      />
+
+      {/* Sidebar Clean */}
+      <aside className="w-full md:w-64 shrink-0 border-b md:border-b-0 md:border-r border-zinc-800/80 bg-zinc-950 flex flex-col justify-between">
         <div>
           {/* Brand Header */}
           <div className="h-14 px-4 border-b border-zinc-800/80 flex items-center justify-between">
@@ -58,112 +91,90 @@ export const AppShell: React.FC = () => {
               variant="outline"
               className="font-mono text-[10px] border-zinc-800 bg-zinc-900/80 text-zinc-400 px-1.5 py-0"
             >
-              v1.0
+              v1.1
             </Badge>
           </div>
 
           {/* Primary Navigation */}
-          <div className="p-3 space-y-4">
-            <div>
-              <div className="px-2 pb-1.5 text-[10px] font-mono uppercase tracking-wider text-zinc-500">
-                Investigação
-              </div>
-              <nav className="space-y-1">
-                <Link
-                  to="/occurrences"
-                  className={cn(
-                    "flex items-center justify-between rounded-md px-2.5 py-2 text-xs font-medium transition-colors",
-                    location.pathname.startsWith("/occurrences")
-                      ? "bg-zinc-900 text-zinc-100 border border-zinc-800/90 shadow-sm"
-                      : "text-zinc-400 hover:bg-zinc-900/50 hover:text-zinc-200",
-                  )}
-                >
-                  <span className="flex items-center gap-2">
-                    <Layers className="h-3.5 w-3.5 text-zinc-400" />
-                    Ocorrências
-                  </span>
-                  <span className="font-mono text-[11px] rounded bg-zinc-800/90 px-1.5 py-0.5 text-zinc-300">
-                    {occurrences.length}
-                  </span>
-                </Link>
-              </nav>
+          <div className="p-3">
+            <div className="px-2 pb-1.5 text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+              Investigação
             </div>
-
-            {/* Painel de Conectividade e Sincronização */}
-            <div className="pt-2 border-t border-zinc-900">
-              <div className="px-2 pb-1.5 text-[10px] font-mono uppercase tracking-wider text-zinc-500 flex items-center justify-between">
-                <span>Conectividade</span>
-                <Activity
-                  className={cn(
-                    "h-3 w-3",
-                    apiStatus === "online"
-                      ? "text-emerald-400"
-                      : apiStatus === "offline"
-                        ? "text-rose-400"
-                        : "text-amber-400",
-                  )}
-                />
-              </div>
-              <div className="space-y-1.5 px-1">
-                <div
-                  data-testid="api-status-indicator"
-                  className={cn(
-                    "w-full flex items-center justify-between rounded-md border px-2.5 py-1.5 text-[11px]",
-                    apiStatus === "online"
-                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                      : apiStatus === "offline"
-                        ? "border-rose-500/30 bg-rose-500/10 text-rose-300"
-                        : "border-zinc-800/80 bg-zinc-900/40 text-zinc-400",
-                  )}
-                >
-                  <span className="flex items-center gap-2">
-                    <span
-                      className={cn(
-                        "h-1.5 w-1.5 rounded-full",
-                        apiStatus === "online"
-                          ? "bg-emerald-400"
-                          : apiStatus === "offline"
-                            ? "bg-rose-400"
-                            : "bg-amber-400 animate-pulse",
-                      )}
-                    />
-                    {apiStatus === "online"
-                      ? "API Online"
-                      : apiStatus === "offline"
-                        ? "API Offline"
-                        : "Verificando API..."}
-                  </span>
-                  <span className="font-mono text-[10px] opacity-80">
-                    :3333
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => void refreshOccurrences()}
-                  disabled={isLoading}
-                  data-testid="btn-sync-data"
-                  className="w-full flex items-center gap-1.5 rounded-md border border-zinc-800/60 bg-transparent px-2.5 py-1.5 text-[11px] text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200 disabled:opacity-50 transition-colors"
-                >
-                  <RefreshCw
-                    className={cn("h-3 w-3", isLoading && "animate-spin")}
-                  />
-                  <span>Sincronizar Dados</span>
-                </button>
-              </div>
-            </div>
+            <nav className="space-y-1">
+              <Link
+                to="/occurrences"
+                className={cn(
+                  "flex items-center justify-between rounded-md px-2.5 py-2 text-xs font-medium transition-colors",
+                  location.pathname.startsWith("/occurrences")
+                    ? "bg-zinc-900 text-zinc-100 border border-zinc-800/90 shadow-sm"
+                    : "text-zinc-400 hover:bg-zinc-900/50 hover:text-zinc-200",
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  <Layers className="h-3.5 w-3.5 text-zinc-400" />
+                  Ocorrências
+                </span>
+                <span className="font-mono text-[11px] rounded bg-zinc-800/90 px-1.5 py-0.5 text-zinc-300">
+                  {occurrences.length}
+                </span>
+              </Link>
+            </nav>
           </div>
         </div>
 
-        {/* Footer de Segurança & Ambiente */}
-        <div className="p-3 border-t border-zinc-800/80 bg-zinc-950/60 space-y-2">
-          <div className="flex items-center gap-2 text-[11px] text-zinc-400">
-            <ShieldCheck className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-            <span className="truncate">Secret Guard Ativo</span>
-          </div>
-          <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-500">
-            <Database className="h-3 w-3 text-zinc-500 shrink-0" />
-            <span className="truncate">database: postgresql</span>
+        {/* Card do Perfil do Usuário */}
+        <div className="p-3 border-t border-zinc-800/80 bg-zinc-950">
+          <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/40 p-2.5 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                {showPhoto ? (
+                  <img
+                    src={user.photoURL!}
+                    alt={user.displayName || "Foto de perfil"}
+                    referrerPolicy="no-referrer"
+                    onError={() => setAvatarError(true)}
+                    className="h-8 w-8 rounded-full object-cover border border-zinc-700/80 shrink-0"
+                  />
+                ) : (
+                  <div className="h-8 w-8 rounded-full bg-zinc-800 border border-zinc-700/60 flex items-center justify-center text-zinc-300 shrink-0">
+                    <UserIcon className="h-4 w-4" />
+                  </div>
+                )}
+                <div className="min-w-0 flex flex-col">
+                  <span className="truncate text-xs font-medium text-zinc-100 leading-tight">
+                    {user.displayName || (isAnonymous ? "Visitante" : "Usuário")}
+                  </span>
+                  {user.email ? (
+                    <span className="truncate text-[11px] text-zinc-400 leading-tight mt-0.5">
+                      {user.email}
+                    </span>
+                  ) : (
+                    <span className="truncate text-[10px] font-mono text-amber-400/90 leading-tight mt-0.5">
+                      Sessão temporária
+                    </span>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => void signOut()}
+                title="Sair da conta"
+                className="text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/70 rounded-md transition-colors p-1.5 shrink-0"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            {isAnonymous && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full h-7 text-[11px] border-amber-500/40 text-amber-300 hover:bg-amber-500/10"
+                onClick={() => setLoginModalOpen(true)}
+              >
+                Salvar conta com Google
+              </Button>
+            )}
           </div>
         </div>
       </aside>
@@ -196,19 +207,23 @@ export const AppShell: React.FC = () => {
                 <ChevronRight className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
                 <span className="font-mono text-[11px] text-zinc-200 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded truncate max-w-[260px] sm:max-w-[420px]">
                   {activeOccurrence
-                    ? `${activeOccurrence.apiName} (${activeOccurrence.id})`
+                    ? `${activeOccurrence.apiName} (${activeOccurrence.id.slice(0, 8)})`
                     : occurrenceId}
                 </span>
               </>
             )}
           </nav>
 
-          <div className="hidden sm:flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-800 bg-zinc-900/70 px-2.5 py-0.5 font-mono text-[10px] text-zinc-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              dark:new-york
-            </span>
-          </div>
+          {isAnonymous && (
+            <div className="flex items-center gap-2">
+              <Badge
+                variant="outline"
+                className="border-amber-500/40 bg-amber-500/10 text-amber-300 text-[11px] px-2 py-0.5"
+              >
+                Modo Visitante (30 dias)
+              </Badge>
+            </div>
+          )}
         </header>
 
         <main className="flex-1 p-6 max-w-6xl w-full mx-auto">

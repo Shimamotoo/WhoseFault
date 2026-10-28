@@ -4,6 +4,7 @@ import type { ITitleGenerator } from '../domain/services/ITitleGenerator.js';
 import type { HttpMethod } from '../domain/occurrence.js';
 
 export interface ICreateOccurrenceInput {
+  userId?: string | null;
   apiName: string;
   url: string;
   method: HttpMethod;
@@ -12,6 +13,7 @@ export interface ICreateOccurrenceInput {
 
 export interface ICreateOccurrenceResult {
   id: string;
+  userId?: string | null;
   apiName: string;
   url: string;
   method: string;
@@ -49,6 +51,7 @@ export async function createOccurrence(
   }
 
   const occurrence = Occurrence.create({
+    userId: input.userId,
     apiName: input.apiName,
     url: input.url,
     method: input.method,
@@ -60,6 +63,7 @@ export async function createOccurrence(
 
   return {
     id: occurrence.id,
+    userId: occurrence.userId,
     apiName: occurrence.apiName,
     url: occurrence.url,
     method: occurrence.method,

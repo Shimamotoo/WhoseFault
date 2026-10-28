@@ -17,7 +17,6 @@ import {
   FolderOpen,
   Plus,
   RefreshCw,
-  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -189,7 +188,7 @@ export const OccurrencesListPage: React.FC = () => {
                         {occ.apiName}
                       </Badge>
                       <span className="font-mono text-[11px] text-zinc-500">
-                        #{occ.id}
+                        #{occ.id.slice(0, 8)}
                       </span>
                     </div>
 
@@ -212,8 +211,7 @@ export const OccurrencesListPage: React.FC = () => {
                           </span>
                         )
                       ) : (
-                        <span className="inline-flex items-center gap-1 rounded bg-zinc-950/60 border border-zinc-800/80 px-2 py-0.5 text-[10px] text-zinc-500">
-                          <Sparkles className="h-3 w-3" />
+                        <span className="inline-flex items-center rounded bg-zinc-950/60 border border-zinc-800/80 px-2 py-0.5 text-[10px] text-zinc-500">
                           Sem diagnóstico
                         </span>
                       )}

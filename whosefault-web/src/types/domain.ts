@@ -58,11 +58,22 @@ export interface Diagnosis {
 
 export interface Occurrence {
   id: string;
+  userId?: string | null;
   apiName: string;
   url: string;
   method: HttpMethod;
   description?: string;
   title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserProfile {
+  id: string;
+  firebaseUid: string;
+  email?: string | null;
+  name?: string | null;
+  isAnonymous: boolean;
   createdAt: string;
   updatedAt: string;
 }

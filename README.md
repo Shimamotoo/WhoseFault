@@ -44,6 +44,7 @@ O backend segue as diretrizes do [ADR-001](whosefault-docs/docs/adr/ADR-001-arqu
 - [ADR-002 — Persistência e integridade dos dados (PostgreSQL + Prisma)](whosefault-docs/docs/adr/ADR-002-persistencia.md)
 - [ADR-003 — Integração com IA e isolamento do provedor](whosefault-docs/docs/adr/ADR-003-integracao-com-ia.md)
 - [ADR-004 — Segurança e tratamento de dados sensíveis (Secret Guard)](whosefault-docs/docs/adr/ADR-004-seguranca-e-dados.md)
+- [ADR-005 — Autenticação híbrida (Firebase Auth) e isolamento multi-inquilino](whosefault-docs/docs/adr/ADR-005-autenticacao-e-identidade.md)
 
 ---
 
@@ -57,7 +58,9 @@ Todas as especificações previstas para a V1 foram implementadas e validadas:
 | [SPEC-02 — Consultar ocorrências](whosefault-docs/docs/specs/SPEC-02-consultar-ocorrencias.md) | Listagem ordenada por criação, visualização de detalhes, badges de método HTTP e empty state. | **100% Concluído** |
 | [SPEC-03 — Gerenciar evidências](whosefault-docs/docs/specs/SPEC-03-gerenciar-evidencias.md) | 4 tipos de evidências (requisição, resposta, logs, notas), exclusão confirmada e Secret Guardrail. | **100% Concluído** |
 | [SPEC-04 — Diagnóstico de IA](whosefault-docs/docs/specs/SPEC-04-diagnostico-de-ia.md) | Análise assistida por IA (fatos, hipóteses e informações faltantes), double-check e invalidação dinâmica. | **100% Concluído** |
-| [Modelo de Domínio](whosefault-docs/docs/domain/modelo-de-dominio.md) | Entidades puras `Occurrence`, `Evidence` e `Diagnosis` desacopladas de infraestrutura. | **100% Concluído** |
+| [Modelo de Domínio](whosefault-docs/docs/domain/modelo-de-dominio.md) | Entidades puras `User`, `Occurrence`, `Evidence` e `Diagnosis` desacopladas de infraestrutura. | **Atualizado (v1.1)** |
+| [SPEC-05 — Login com Firebase](whosefault-docs/docs/specs/SPEC-05-firebase-auth.md) | Autenticação com conta Google, Modo Visitante anônimo e promoção de conta (*Account Linking*). | **Em Implementação** |
+| [SPEC-06 — Gerenciar Identidade](whosefault-docs/docs/specs/SPEC-06-gerenciar-identidade.md) | Validação JWT, tabela de usuários, isolamento multi-inquilino e expurgo de visitantes após 30 dias. | **Em Implementação** |
 
 ---
 

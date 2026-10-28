@@ -4,7 +4,9 @@ import type {
   EvidenceType,
   HttpMethod,
   Occurrence,
+  UserProfile,
 } from "@/types/domain";
+import { auth } from "./firebase";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_URL?.replace(/\/+$/, "") ||
@@ -61,6 +63,31 @@ export class ApiError extends Error {
   }
 }
 
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {};
+  try {
+    const token = await auth.currentUser?.getIdToken();
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+  } catch (err) {
+    console.warn("Falha ao obter token JWT do Firebase:", err);
+  }
+  return headers;
+}
+
+async function fetchWithAuth(url: string, init?: RequestInit): Promise<Response> {
+  const authHeaders = await getAuthHeaders();
+  const headers = new Headers(init?.headers);
+  for (const [key, value] of Object.entries(authHeaders)) {
+    headers.set(key, value);
+  }
+  return fetch(url, {
+    ...init,
+    headers,
+  });
+}
+
 function normalizeOccurrence(raw: Partial<Occurrence> & { id: string }): Occurrence {
   const createdAt =
     typeof raw.createdAt === "string"
@@ -71,6 +98,7 @@ function normalizeOccurrence(raw: Partial<Occurrence> & { id: string }): Occurre
 
   return {
     id: raw.id,
+    userId: raw.userId ?? undefined,
     apiName: raw.apiName ?? "",
     url: raw.url ?? "",
     method: (raw.method as HttpMethod) ?? "GET",
@@ -106,8 +134,18 @@ async function handleErrorResponse(
   });
 }
 
+export async function syncUserProfile(): Promise<UserProfile> {
+  const res = await fetchWithAuth(`${API_BASE_URL}/auth/sync`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    await handleErrorResponse(res, "Falha ao sincronizar perfil do usuário.");
+  }
+  return (await res.json()) as UserProfile;
+}
+
 export async function getOccurrences(): Promise<Occurrence[]> {
-  const res = await fetch(`${API_BASE_URL}/occurrences`);
+  const res = await fetchWithAuth(`${API_BASE_URL}/occurrences`);
   if (!res.ok) {
     await handleErrorResponse(res, "Falha ao carregar ocorrências.");
   }
@@ -116,7 +154,7 @@ export async function getOccurrences(): Promise<Occurrence[]> {
 }
 
 export async function getOccurrence(id: string): Promise<Occurrence> {
-  const res = await fetch(`${API_BASE_URL}/occurrences/${encodeURIComponent(id)}`);
+  const res = await fetchWithAuth(`${API_BASE_URL}/occurrences/${encodeURIComponent(id)}`);
   if (!res.ok) {
     await handleErrorResponse(res, "Falha ao carregar detalhes da ocorrência.");
   }
@@ -127,7 +165,7 @@ export async function getOccurrence(id: string): Promise<Occurrence> {
 export async function createOccurrence(
   dto: CreateOccurrenceDTO,
 ): Promise<Occurrence> {
-  const res = await fetch(`${API_BASE_URL}/occurrences`, {
+  const res = await fetchWithAuth(`${API_BASE_URL}/occurrences`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(dto),
@@ -143,7 +181,7 @@ export async function updateOccurrence(
   id: string,
   dto: UpdateOccurrenceDTO,
 ): Promise<Occurrence> {
-  const res = await fetch(
+  const res = await fetchWithAuth(
     `${API_BASE_URL}/occurrences/${encodeURIComponent(id)}`,
     {
       method: "PATCH",
@@ -159,7 +197,7 @@ export async function updateOccurrence(
 }
 
 export async function retryTitleGeneration(id: string): Promise<Occurrence> {
-  const res = await fetch(
+  const res = await fetchWithAuth(
     `${API_BASE_URL}/occurrences/${encodeURIComponent(id)}/retry-title`,
     {
       method: "POST",
@@ -172,7 +210,7 @@ export async function retryTitleGeneration(id: string): Promise<Occurrence> {
 }
 
 export async function getEvidences(occurrenceId: string): Promise<Evidence[]> {
-  const res = await fetch(
+  const res = await fetchWithAuth(
     `${API_BASE_URL}/occurrences/${encodeURIComponent(occurrenceId)}/evidences`,
   );
   if (!res.ok) {
@@ -186,7 +224,7 @@ export async function createEvidence(
   occurrenceId: string,
   dto: CreateEvidenceDTO,
 ): Promise<Evidence> {
-  const res = await fetch(
+  const res = await fetchWithAuth(
     `${API_BASE_URL}/occurrences/${encodeURIComponent(occurrenceId)}/evidences`,
     {
       method: "POST",
@@ -204,7 +242,7 @@ export async function deleteEvidence(
   occurrenceId: string,
   evidenceId: string,
 ): Promise<void> {
-  const res = await fetch(
+  const res = await fetchWithAuth(
     `${API_BASE_URL}/occurrences/${encodeURIComponent(occurrenceId)}/evidences/${encodeURIComponent(evidenceId)}?confirm=true`,
     {
       method: "DELETE",
@@ -218,7 +256,7 @@ export async function deleteEvidence(
 export async function getDiagnosis(
   occurrenceId: string,
 ): Promise<Diagnosis | null> {
-  const res = await fetch(
+  const res = await fetchWithAuth(
     `${API_BASE_URL}/occurrences/${encodeURIComponent(occurrenceId)}/diagnosis`,
   );
   if (res.status === 404) {
@@ -233,7 +271,7 @@ export async function getDiagnosis(
 export async function requestDiagnosis(
   occurrenceId: string,
 ): Promise<Diagnosis> {
-  const res = await fetch(
+  const res = await fetchWithAuth(
     `${API_BASE_URL}/occurrences/${encodeURIComponent(occurrenceId)}/diagnosis`,
     {
       method: "POST",
