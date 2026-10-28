@@ -19,9 +19,7 @@ services:
       - whosefault-network
 
   api:
-    build:
-      context: ./whosefault-api
-      dockerfile: Dockerfile
+    image: shiimamoto/whosefault-api:latest
     container_name: whosefault-api
     restart: unless-stopped
     env_file:
@@ -40,11 +38,7 @@ services:
       - whosefault-network
 
   web:
-    build:
-      context: ./whosefault-web
-      dockerfile: Dockerfile
-      args:
-        - VITE_API_URL=/api
+    image: shiimamoto/whosefault-web:latest
     container_name: whosefault-web
     restart: unless-stopped
     ports:
