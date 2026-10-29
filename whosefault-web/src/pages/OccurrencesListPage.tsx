@@ -15,6 +15,7 @@ import {
   Clock,
   FileCode2,
   FolderOpen,
+  Loader2,
   Plus,
   RefreshCw,
 } from "lucide-react";
@@ -40,6 +41,7 @@ export const OccurrencesListPage: React.FC = () => {
     occurrences,
     evidencesByOccurrence,
     diagnosesByOccurrence,
+    pollingTitleIds,
     isLoading,
     error,
     refreshOccurrences,
@@ -169,6 +171,7 @@ export const OccurrencesListPage: React.FC = () => {
             const evidences = evidencesByOccurrence[occ.id] ?? [];
             const diagnosis = diagnosesByOccurrence[occ.id];
             const isGenericTitle = occ.title === "Ocorrência sem descrição";
+            const isPollingTitle = Boolean(pollingTitleIds[occ.id]) && isGenericTitle;
 
             return (
               <Card
@@ -228,16 +231,27 @@ export const OccurrencesListPage: React.FC = () => {
 
                   {/* Linha 2: Título da Ocorrência */}
                   <div className="flex items-start justify-between gap-4">
-                    <h2
-                      className={cn(
-                        "text-sm font-semibold leading-snug group-hover:text-white transition-colors",
-                        isGenericTitle
-                          ? "text-zinc-400 italic"
-                          : "text-zinc-100",
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2
+                        className={cn(
+                          "text-sm font-semibold leading-snug group-hover:text-white transition-colors",
+                          isGenericTitle
+                            ? "text-zinc-400 italic"
+                            : "text-zinc-100",
+                        )}
+                      >
+                        {occ.title}
+                      </h2>
+                      {isPollingTitle && (
+                        <span
+                          data-testid={`occurrence-title-polling-${occ.id}`}
+                          className="inline-flex items-center gap-1 rounded bg-blue-500/10 border border-blue-500/30 px-2 py-0.5 text-[10px] font-medium text-blue-300"
+                        >
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Gerando título IA...
+                        </span>
                       )}
-                    >
-                      {occ.title}
-                    </h2>
+                    </div>
                     <ArrowUpRight className="h-4 w-4 text-zinc-600 group-hover:text-zinc-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform shrink-0 mt-0.5" />
                   </div>
 

@@ -5,6 +5,7 @@
  *
  * Referências de Especificação e Arquitetura:
  * - SPEC-01 (RF-03, RF-04, RN-06, RN-09, CA-05, CA-06, CA-13)
+ * - SPEC-07 (RF-04 — suporte a throwOnError para retentativas do worker)
  * - ADR-003 (Integração com IA e isolamento do provedor)
  * - ADR-004 (Segurança e tratamento de dados — verificação prévia e proteção de logs)
  */
@@ -18,7 +19,7 @@ import {
 import { PatternSecretDetector } from '../../../domain/services/secretDetector.js';
 import type { ISecretDetector } from '../../../domain/services/ISecretDetector.js';
 
-describe('GeminiTitleGenerator (SPEC-01 / ADR-003 / ADR-004)', () => {
+describe('GeminiTitleGenerator (SPEC-01 / SPEC-07 / ADR-003 / ADR-004)', () => {
   const originalEnv = process.env.GEMINI_API_KEY_FREETIER;
   const FAKE_API_KEY = 'AIzaSyFakeFreeTierKeyForUnitTestingOnly123';
 
@@ -187,6 +188,28 @@ describe('GeminiTitleGenerator (SPEC-01 / ADR-003 / ADR-004)', () => {
 
     // Assert (Então retorna null e nenhum argumento passado ao log contém a chave da API)
     expect(result).toBeNull();
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    const serializedErrorLog = JSON.stringify(errorSpy.mock.calls);
+    expect(serializedErrorLog).not.toContain(FAKE_API_KEY);
+  });
+
+  it('SPEC-07 RF-04: deve relançar erro sanitizado quando throwOnError=true para acionar retentativas do worker', async () => {
+    const sdkErrorWithLeakedKey = new Error(
+      `FetchError: request failed with key=${FAKE_API_KEY}`,
+    );
+    mockGenerateContent.mockRejectedValueOnce(sdkErrorWithLeakedKey);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const generator = new GeminiTitleGenerator({
+      apiKey: FAKE_API_KEY,
+      client: mockClient,
+      throwOnError: true,
+    });
+
+    await expect(
+      generator.generate('Timeout ao conectar no serviço de pedidos.'),
+    ).rejects.toThrow('Falha ao gerar título via Gemini API.');
+
     expect(errorSpy).toHaveBeenCalledTimes(1);
     const serializedErrorLog = JSON.stringify(errorSpy.mock.calls);
     expect(serializedErrorLog).not.toContain(FAKE_API_KEY);

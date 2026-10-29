@@ -1,7 +1,7 @@
 import { Occurrence } from '../domain/occurrence.js';
 import type { IOccurrenceRepository } from '../domain/repositories/IOccurrenceRepository.js';
 import type { IDiagnosisRepository } from '../domain/repositories/IDiagnosisRepository.js';
-import type { ITitleGenerator } from '../domain/services/ITitleGenerator.js';
+import type { ITitleQueue } from '../domain/services/ITitleQueue.js';
 import type { HttpMethod } from '../domain/occurrence.js';
 import { InMemoryOccurrenceRepository } from '../infra/repositories/occurrenceRepository.js';
 import { diagnosisRepository as inMemoryDiagnosisRepository } from '../infra/repositories/diagnosisRepository.js';
@@ -35,17 +35,17 @@ export class OccurrenceNotFoundError extends Error {
 
 /**
  * Caso de uso: Editar ocorrência.
- * Cobre CA-08, CA-09, CA-10, CA-11.
+ * Cobre SPEC-01 (CA-08 a CA-11) e SPEC-07 (RF-02, RNF-01).
  *
  * - Aplica apenas os campos informados (patch parcial — CA-08).
  * - Re-valida via Occurrence.create() com os valores mesclados (CA-09).
- * - Se description é adicionada PELA PRIMEIRA VEZ → tenta gerar título (CA-10).
- * - Se description já existia e é editada → NÃO gera novo título (CA-11).
+ * - Se description é adicionada PELA PRIMEIRA VEZ → preserva título atual e enfileira job assíncrono (SPEC-07 RF-02).
+ * - Se description já existia e é editada → NÃO enfileira nem altera título (CA-11).
  */
 export async function updateOccurrence(
   input: IUpdateOccurrenceInput,
   repo: IOccurrenceRepository,
-  titleGenerator: ITitleGenerator,
+  titleQueue: ITitleQueue,
   diagnosisRepo?: IDiagnosisRepository,
 ): Promise<IUpdateOccurrenceResult> {
   const existing = await repo.findById(input.id);
@@ -53,39 +53,43 @@ export async function updateOccurrence(
     throw new OccurrenceNotFoundError(input.id);
   }
 
-  const hadDescription = existing.description !== undefined && existing.description !== '';
-  const newDescription = 'description' in input ? input.description : existing.description;
+  const hadDescription =
+    existing.description !== undefined && existing.description.trim() !== '';
+  const newDescription =
+    'description' in input ? input.description : existing.description;
   const addingDescriptionFirstTime =
-    !hadDescription && newDescription !== undefined && newDescription !== '';
+    !hadDescription &&
+    newDescription !== undefined &&
+    newDescription.trim() !== '';
 
-  let newTitle = existing.title;
-
-  // CA-10: descrição adicionada pela primeira vez → tenta gerar título
-  if (addingDescriptionFirstTime && newDescription) {
-    try {
-      const aiTitle = await titleGenerator.generate(newDescription);
-      if (aiTitle && aiTitle.trim().length > 0) {
-        newTitle = aiTitle.trim();
-      }
-    } catch {
-      // Falha na IA mantém o título atual
-    }
-  }
-  // CA-11: descrição já existia → não altera título
-
-  // Mescla os campos (CA-08: preserva os não alterados)
+  // Mescla os campos (CA-08: preserva os não alterados, incluindo título atual)
   const updated = Occurrence.create({
     id: existing.id,
+    userId: existing.userId,
     apiName: input.apiName ?? existing.apiName,
     url: input.url ?? existing.url,
     method: input.method ?? existing.method,
     description: newDescription,
-    title: newTitle,
+    title: existing.title,
     createdAt: existing.createdAt,
     updatedAt: new Date(Math.max(Date.now(), existing.updatedAt.getTime() + 1)),
   });
 
   await repo.update(updated);
+
+  // SPEC-07 RF-02 / SPEC-01 CA-10: descrição adicionada pela primeira vez → enfileira geração assíncrona
+  if (addingDescriptionFirstTime && newDescription) {
+    try {
+      await titleQueue.enqueue({
+        occurrenceId: updated.id,
+        description: newDescription,
+      });
+    } catch (err) {
+      console.error('[updateOccurrence] Falha ao enfileirar job de geração de título:', {
+        errorName: err instanceof Error ? err.name : 'UnknownError',
+      });
+    }
+  }
 
   const resolvedDiagnosisRepo =
     diagnosisRepo ??

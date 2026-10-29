@@ -6,18 +6,20 @@ import { retryTitleGeneration } from '../../application/retryTitleGeneration.js'
 import type { IOccurrenceRepository } from '../../domain/repositories/IOccurrenceRepository.js';
 import type { IDiagnosisRepository } from '../../domain/repositories/IDiagnosisRepository.js';
 import type { ITitleGenerator } from '../../domain/services/ITitleGenerator.js';
+import type { ITitleQueue } from '../../domain/services/ITitleQueue.js';
 import type { HttpMethod } from '../../domain/occurrence.js';
 
 export interface OccurrenceRoutesOptions {
   occurrenceRepository: IOccurrenceRepository;
   titleGenerator: ITitleGenerator;
+  titleQueue: ITitleQueue;
   diagnosisRepository?: IDiagnosisRepository;
   authHook?: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 }
 
 /** Rotas referentes a ocorrências */
 const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app, opts) => {
-  const { occurrenceRepository, titleGenerator, diagnosisRepository, authHook } = opts;
+  const { occurrenceRepository, titleGenerator, titleQueue, diagnosisRepository, authHook } = opts;
 
   const preHandler = authHook ? [authHook] : [];
 
@@ -69,7 +71,7 @@ const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app
   });
 
   // ------------------------------------------------------------------ //
-  // POST /occurrences — Criar ocorrência (SPEC-01 e SPEC-06)
+  // POST /occurrences — Criar ocorrência (SPEC-01, SPEC-06 e SPEC-07)
   // ------------------------------------------------------------------ //
   app.post('/occurrences', { preHandler }, async (req, reply) => {
     try {
@@ -89,7 +91,7 @@ const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app
           description,
         },
         occurrenceRepository,
-        titleGenerator,
+        titleQueue,
       );
 
       return reply.code(201).send(result);
@@ -103,7 +105,7 @@ const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app
   });
 
   // ------------------------------------------------------------------ //
-  // PATCH /occurrences/:id — Editar ocorrência (SPEC-01 CA-08 a CA-11)
+  // PATCH /occurrences/:id — Editar ocorrência (SPEC-01 CA-08 a CA-11 e SPEC-07 RF-02)
   // ------------------------------------------------------------------ //
   app.patch('/occurrences/:id', { preHandler }, async (req, reply) => {
     const { id } = req.params as { id: string };
@@ -118,7 +120,7 @@ const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app
       const result = await updateOccurrence(
         { id, apiName, url, method, description },
         occurrenceRepository,
-        titleGenerator,
+        titleQueue,
         diagnosisRepository,
       );
 

@@ -11,7 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:unit": "vitest run --exclude src/tests/infra/prisma*",
-    "test:integration": "vitest run src/tests/infra/prisma*",
+    "test:integration": "vitest run src/tests/infra/prisma --fileParallelism=false",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
@@ -26,8 +26,10 @@
     "@fastify/cors": "^11.3.1",
     "@google/genai": "^2.31.0",
     "@prisma/client": "^6.4.1",
+    "bullmq": "^6.5.1",
     "fastify": "^5.12.7",
     "firebase-admin": "^14.5.0",
+    "ioredis": "^6.0.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {

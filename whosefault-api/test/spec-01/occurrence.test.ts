@@ -1,5 +1,5 @@
 /**
- * Testes de integração HTTP para a SPEC-01 – Registrar ocorrência.
+ * Testes de integração HTTP para a SPEC-01 – Registrar ocorrência (estendida pela SPEC-07).
  * Cobrem os critérios de aceitação CA-01 a CA-13.
  *
  * Skill utilizada: TDD & Test Generator (whosefault-docs/.antigravity/skills/test-generator.md)
@@ -7,21 +7,26 @@
  * Estratégia:
  * - Utiliza o Fastify inject (sem servidor HTTP real).
  * - Repositório in-memory real controlado via clear() no beforeEach.
- * - ITitleGenerator substituído por um double inline injetado via createServer(titleGenerator).
+ * - StubTitleQueue injetada para verificar enfileiramento assíncrono (SPEC-07).
+ * - ITitleGenerator substituído por um double inline injetado via createServer(titleGenerator) para retry manual (CA-12).
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { createServer } from '../../src/http/server.js';
 import { occurrenceRepository } from '../../src/infra/repositories/occurrenceRepository.js';
+import { StubTitleQueue } from '../../src/infra/queue/stubTitleQueue.js';
+import { processTitleGenerationJob } from '../../src/infra/queue/titleWorker.js';
 import type { ITitleGenerator } from '../../src/domain/services/ITitleGenerator.js';
 import type { FastifyInstance } from 'fastify';
 
-// ── Double do ITitleGenerator ────────────────────────────────────────────────
-const mockGenerate = vi.fn<[string], Promise<string | null>>();
+// ── Double do ITitleGenerator & StubTitleQueue ───────────────────────────────
+const mockGenerate = vi.fn<(desc: string) => Promise<string | null>>();
 
 const fakeTitleGenerator: ITitleGenerator = {
   generate: (desc: string) => mockGenerate(desc),
 };
+
+const stubTitleQueue = new StubTitleQueue();
 
 // ── Setup ────────────────────────────────────────────────────────────────────
 let app: FastifyInstance;
@@ -30,6 +35,7 @@ beforeAll(async () => {
   app = createServer({
     occurrenceRepository,
     titleGenerator: fakeTitleGenerator,
+    titleQueue: stubTitleQueue,
   });
   await app.ready();
 });
@@ -40,6 +46,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   occurrenceRepository.clear();
+  stubTitleQueue.clear();
   mockGenerate.mockReset();
   mockGenerate.mockResolvedValue(null); // padrão: IA não retorna título
 });
@@ -71,6 +78,7 @@ describe('SPEC-01 – Registrar Ocorrência', () => {
       expect(body.title).toBe('Ocorrência sem descrição');
       expect(body.description).toBeUndefined();
       expect(body.id).toBeDefined();
+      expect(stubTitleQueue.jobs).toHaveLength(0);
     });
 
     it('CA-02: deve rejeitar quando apiName estiver ausente', async () => {
@@ -124,7 +132,7 @@ describe('SPEC-01 – Registrar Ocorrência', () => {
       expect(response.statusCode).toBe(400);
     });
 
-    it('CA-05: deve salvar o título gerado pela IA quando disponível', async () => {
+    it('CA-05 (SPEC-07 RF-01): deve responder imediatamente com título genérico, enfileirar job e atualizar título via worker', async () => {
       mockGenerate.mockResolvedValueOnce('Timeout no checkout');
 
       const response = await post('/api/occurrences', {
@@ -134,11 +142,25 @@ describe('SPEC-01 – Registrar Ocorrência', () => {
 
       expect(response.statusCode).toBe(201);
       const body = JSON.parse(response.body);
-      expect(body.title).toBe('Timeout no checkout');
+      expect(body.title).toBe('Ocorrência sem descrição');
       expect(body.description).toBe('Recebendo timeout ao processar pagamento.');
+      expect(stubTitleQueue.jobs).toEqual([
+        {
+          occurrenceId: body.id,
+          description: 'Recebendo timeout ao processar pagamento.',
+        },
+      ]);
+
+      // Quando o worker processa o job assincronamente, o título é atualizado
+      await processTitleGenerationJob(stubTitleQueue.jobs[0]!, {
+        occurrenceRepository,
+        titleGenerator: fakeTitleGenerator,
+      });
+      const updated = await occurrenceRepository.findById(body.id);
+      expect(updated?.title).toBe('Timeout no checkout');
     });
 
-    it('CA-06: deve usar título genérico e preservar descrição quando a IA falha', async () => {
+    it('CA-06: deve usar título genérico e preservar descrição mesmo se o processamento da IA falhar', async () => {
       mockGenerate.mockRejectedValueOnce(new Error('IA indisponível'));
 
       const response = await post('/api/occurrences', {
@@ -209,8 +231,8 @@ describe('SPEC-01 – Registrar Ocorrência', () => {
       expect(response.statusCode).toBe(404);
     });
 
-    it('CA-10: deve gerar título ao adicionar descrição pela primeira vez', async () => {
-      const { id } = await criarOcorrencia(); // sem description — mockGenerate retorna null
+    it('CA-10 (SPEC-07 RF-02): deve responder imediatamente e enfileirar título ao adicionar descrição pela primeira vez', async () => {
+      const { id } = await criarOcorrencia(); // sem description
 
       mockGenerate.mockResolvedValueOnce('Título gerado na edição');
       const response = await patch(`/api/occurrences/${id}`, {
@@ -219,11 +241,24 @@ describe('SPEC-01 – Registrar Ocorrência', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      expect(body.title).toBe('Título gerado na edição');
+      expect(body.title).toBe('Ocorrência sem descrição');
       expect(body.description).toBe('Descrição adicionada agora.');
+      expect(stubTitleQueue.jobs).toEqual([
+        {
+          occurrenceId: id,
+          description: 'Descrição adicionada agora.',
+        },
+      ]);
+
+      await processTitleGenerationJob(stubTitleQueue.jobs[0]!, {
+        occurrenceRepository,
+        titleGenerator: fakeTitleGenerator,
+      });
+      const updated = await occurrenceRepository.findById(id);
+      expect(updated?.title).toBe('Título gerado na edição');
     });
 
-    it('CA-10: deve usar título genérico se IA falhar ao adicionar descrição pela primeira vez', async () => {
+    it('CA-10: deve manter título genérico se IA falhar ao adicionar descrição pela primeira vez', async () => {
       const { id } = await criarOcorrencia();
 
       mockGenerate.mockRejectedValueOnce(new Error('IA offline'));
@@ -237,12 +272,18 @@ describe('SPEC-01 – Registrar Ocorrência', () => {
       expect(body.description).toBe('Descrição nova.');
     });
 
-    it('CA-11: não deve alterar o título ao editar uma descrição já existente', async () => {
-      // IA gera título na criação
+    it('CA-11: não deve alterar o título nem enfileirar novo job ao editar uma descrição já existente', async () => {
       mockGenerate.mockResolvedValueOnce('Título original');
       const { id } = await criarOcorrencia({ description: 'Descrição original.' });
 
-      // IA NÃO deve ser chamada ao editar description existente
+      // Processa o job inicial para estabelecer o título gerado na criação
+      await processTitleGenerationJob(stubTitleQueue.jobs[0]!, {
+        occurrenceRepository,
+        titleGenerator: fakeTitleGenerator,
+      });
+      stubTitleQueue.clear();
+
+      // IA NÃO deve ser enfileirada nem chamada ao editar description existente
       mockGenerate.mockResolvedValueOnce('Título NOVO — não deve aparecer');
 
       const response = await patch(`/api/occurrences/${id}`, {
@@ -253,19 +294,20 @@ describe('SPEC-01 – Registrar Ocorrência', () => {
       const body = JSON.parse(response.body);
       expect(body.title).toBe('Título original');       // título não muda
       expect(body.description).toBe('Descrição editada.');
+      expect(stubTitleQueue.jobs).toHaveLength(0);
     });
   });
 
   // ── Nova tentativa de título ─────────────────────────────────────────────
   describe('POST /occurrences/:id/retry-title — CA-12', () => {
     it('CA-12: deve substituir o título genérico quando a IA gerar com sucesso', async () => {
-      // Cria sem description (título genérico, IA retorna null)
+      // Cria sem description (título genérico)
       const { id } = JSON.parse((await post('/api/occurrences', basePayload)).body);
 
-      // Adiciona description via PATCH — IA retorna null, título permanece genérico
+      // Adiciona description via PATCH — título permanece genérico até processamento
       await patch(`/api/occurrences/${id}`, { description: 'Descrição para retry.' });
 
-      // Retry com IA bem-sucedida
+      // Retry manual com IA bem-sucedida
       mockGenerate.mockResolvedValueOnce('Título gerado no retry');
       const response = await post(`/api/occurrences/${id}/retry-title`, {});
 

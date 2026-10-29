@@ -32,6 +32,7 @@ import {
 import type { ISecretDetector } from '../../domain/services/ISecretDetector.js';
 import { PatternSecretDetector } from '../../domain/services/secretDetector.js';
 import { StubTitleGenerator } from '../../infra/ai/stubTitleGenerator.js';
+import { StubTitleQueue } from '../../infra/queue/stubTitleQueue.js';
 
 describe('SPEC-04: GenerateDiagnosisUseCase e Gerenciamento de isOutdated', () => {
   let baseOccurrenceId: string;
@@ -355,7 +356,7 @@ describe('SPEC-04: GenerateDiagnosisUseCase e Gerenciamento de isOutdated', () =
         description: 'Descrição atualizada da ocorrência',
       },
       occurrenceRepository,
-      new StubTitleGenerator(),
+      new StubTitleQueue(),
       diagnosisRepository,
     );
     expect((await diagnosisRepository.findByOccurrenceId(baseOccurrenceId))?.isOutdated).toBe(true);
