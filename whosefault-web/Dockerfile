@@ -15,7 +15,7 @@ RUN npm ci
 COPY . .
 
 # Variável de build para URL da API (o Vite embute variáveis VITE_* no momento do build)
-ARG VITE_API_URL=http://localhost:3333/api
+ARG VITE_API_URL=/api
 ENV VITE_API_URL=$VITE_API_URL
 
 # Executa build de produção (TypeScript + Vite)

@@ -17,7 +17,7 @@ import * as api from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 
 const GENERIC_TITLE = "Ocorrência sem descrição";
-const TITLE_POLL_MAX_ATTEMPTS = 3;
+const TITLE_POLL_MAX_ATTEMPTS = 7;
 const TITLE_POLL_INTERVAL_MS = 2000;
 
 export interface CreateOccurrenceInput {
