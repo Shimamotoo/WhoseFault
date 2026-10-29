@@ -45,9 +45,13 @@ As decisões arquiteturais aprovadas devem ser respeitadas durante a implementa�
 
 ### Especificações funcionais
 
-- [`SPEC-01 — Registrar ocorrência`](docs/specs/SPEC-01-registrar-ocorrencia.md)
-- [`SPEC-02 — Consultar ocorrências`](docs/specs/SPEC-02-consultar-ocorrencias.md)
-- [`SPEC-03 — Gerenciar evidências`](docs/specs/SPEC-03-gerenciar-evidencias.md)
+- [SPEC-01 — Registrar ocorrência](specs/SPEC-01-registrar-ocorrencia.md)
+- [SPEC-02 — Consultar ocorrências](specs/SPEC-02-consultar-ocorrencias.md)
+- [SPEC-03 — Gerenciar evidências](specs/SPEC-03-gerenciar-evidencias.md)
+- [SPEC-04 — Solicitar diagnóstico por IA](specs/SPEC-04-diagnostico-de-ia.md)
+- [SPEC-05 — Firebase Auth](specs/SPEC-05-firebase-auth.md)
+- [SPEC-06 — Gerenciar Identidade](specs/SPEC-06-gerenciar-identidade.md)
+- [SPEC-07 — Processamento Assíncrono de Títulos com Mensageria](specs/SPEC-07-geracao-assincrona-de-titulos.md)
 
 ### Modelo de domínio
 

@@ -13,7 +13,7 @@ export interface IRetryTitleResult {
 
 /**
  * Caso de uso: Nova tentativa manual de geração de título.
- * Cobre CA-12.
+ * Cobre CA-12 (SPEC-01) e CA-04 (SPEC-07).
  *
  * Pré-condições:
  *  - A ocorrência deve existir.
@@ -57,13 +57,14 @@ export async function retryTitleGeneration(
   if (titleGenerated) {
     const updated = Occurrence.create({
       id: existing.id,
+      userId: existing.userId,
       apiName: existing.apiName,
       url: existing.url,
       method: existing.method,
       description: existing.description,
       title: newTitle,
       createdAt: existing.createdAt,
-      updatedAt: new Date(),
+      updatedAt: new Date(Math.max(Date.now(), existing.updatedAt.getTime() + 1)),
     });
     await repo.update(updated);
   }

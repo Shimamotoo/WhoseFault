@@ -89,6 +89,7 @@ export const OccurrenceDetailsPage: React.FC = () => {
     occurrences,
     evidencesByOccurrence,
     diagnosesByOccurrence,
+    pollingTitleIds,
     loadOccurrenceDetails,
     updateOccurrence,
     retryTitleGeneration,
@@ -266,6 +267,10 @@ export const OccurrenceDetailsPage: React.FC = () => {
     }
   };
 
+  const isPollingTitle =
+    Boolean(id && pollingTitleIds[id]) &&
+    occurrence.title === "Ocorrência sem descrição";
+
   const canRetryTitle =
     occurrence.title === "Ocorrência sem descrição" &&
     Boolean(occurrence.description && occurrence.description.trim() !== "");
@@ -341,12 +346,12 @@ export const OccurrenceDetailsPage: React.FC = () => {
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={isGeneratingDiagnosis}
+                  disabled={isGeneratingDiagnosis || isPollingTitle}
                   onClick={() => void handleRetryTitle()}
                   title="Tentar gerar título curto a partir da descrição"
                 >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  Gerar Título IA
+                  <RefreshCw className={cn("h-3.5 w-3.5", isPollingTitle && "animate-spin")} />
+                  {isPollingTitle ? "Gerando Título..." : "Gerar Título IA"}
                 </Button>
               )}
 
@@ -390,17 +395,28 @@ export const OccurrenceDetailsPage: React.FC = () => {
             <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
               Título Atual da Ocorrência
             </div>
-            <h1
-              data-testid="occurrence-detail-title"
-              className={cn(
-                "text-base sm:text-lg font-semibold tracking-tight",
-                occurrence.title === "Ocorrência sem descrição"
-                  ? "text-zinc-400 italic"
-                  : "text-zinc-50",
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1
+                data-testid="occurrence-detail-title"
+                className={cn(
+                  "text-base sm:text-lg font-semibold tracking-tight",
+                  occurrence.title === "Ocorrência sem descrição"
+                    ? "text-zinc-400 italic"
+                    : "text-zinc-50",
+                )}
+              >
+                {occurrence.title}
+              </h1>
+              {isPollingTitle && (
+                <span
+                  data-testid="occurrence-detail-title-polling"
+                  className="inline-flex items-center gap-1.5 rounded bg-blue-500/10 border border-blue-500/30 px-2 py-0.5 text-xs font-medium text-blue-300"
+                >
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Gerando título via IA...
+                </span>
               )}
-            >
-              {occurrence.title}
-            </h1>
+            </div>
           </div>
 
           {/* Barra Monoespaçada com Método HTTP e URL Completa */}

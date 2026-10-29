@@ -18,6 +18,20 @@ services:
     networks:
       - whosefault-network
 
+  redis:
+    image: redis:alpine
+    container_name: whosefault-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - whosefault-network
+
   api:
     image: shiimamoto/whosefault-api:latest
     container_name: whosefault-api
@@ -28,11 +42,16 @@ services:
       - PORT=3333
       - HOST=0.0.0.0
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-whosefault}?schema=public
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_URL=redis://redis:6379
       - RUN_MIGRATIONS=true
     ports:
       - "${API_PORT:-3333}:3333"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - whosefault-network

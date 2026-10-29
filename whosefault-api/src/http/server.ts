@@ -18,6 +18,8 @@ import { prismaDiagnosisRepository } from '../infra/repositories/prismaDiagnosis
 import { prismaUserRepository } from '../infra/repositories/prismaUserRepository.js';
 import type { ITitleGenerator } from '../domain/services/ITitleGenerator.js';
 import { StubTitleGenerator } from '../infra/ai/stubTitleGenerator.js';
+import type { ITitleQueue } from '../domain/services/ITitleQueue.js';
+import { StubTitleQueue } from '../infra/queue/stubTitleQueue.js';
 import type { IDiagnosisGenerator } from '../domain/services/IDiagnosisGenerator.js';
 import { StubDiagnosisGenerator } from '../infra/ai/stubDiagnosisGenerator.js';
 import type { ISecretDetector } from '../domain/services/ISecretDetector.js';
@@ -33,6 +35,7 @@ export interface ServerDependencies {
   userRepository?: IUserRepository;
   tokenVerifier?: ITokenVerifier;
   titleGenerator?: ITitleGenerator;
+  titleQueue?: ITitleQueue;
   diagnosisGenerator?: IDiagnosisGenerator;
   secretDetector?: ISecretDetector;
   requireAuth?: boolean;
@@ -42,7 +45,7 @@ export interface ServerDependencies {
  * Cria e configura a aplicação Fastify.
  * Mantém a camada de domínio livre de dependências externas.
  *
- * @param deps - Dependências injetáveis (repositórios, geradores de IA, detector de segredos e autenticação).
+ * @param deps - Dependências injetáveis (repositórios, geradores de IA, fila de títulos, detector de segredos e autenticação).
  */
 export function createServer(deps: ServerDependencies = {}) {
   const isInMemory = deps.occurrenceRepository instanceof InMemoryOccurrenceRepository;
@@ -60,6 +63,7 @@ export function createServer(deps: ServerDependencies = {}) {
       ? new StubTokenVerifier()
       : new FirebaseTokenVerifier(),
     titleGenerator = new StubTitleGenerator(),
+    titleQueue = new StubTitleQueue(),
     diagnosisGenerator = new StubDiagnosisGenerator(),
     secretDetector = defaultSecretDetector,
     requireAuth = false,
@@ -112,6 +116,7 @@ export function createServer(deps: ServerDependencies = {}) {
     prefix: '/api',
     occurrenceRepository,
     titleGenerator,
+    titleQueue,
     diagnosisRepository,
     authHook: conditionalAuthHook,
   });

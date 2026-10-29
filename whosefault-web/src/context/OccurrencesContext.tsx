@@ -3,6 +3,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import type {
@@ -14,6 +15,10 @@ import type {
 } from "@/types/domain";
 import * as api from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
+
+const GENERIC_TITLE = "Ocorrência sem descrição";
+const TITLE_POLL_MAX_ATTEMPTS = 3;
+const TITLE_POLL_INTERVAL_MS = 2000;
 
 export interface CreateOccurrenceInput {
   apiName: string;
@@ -49,6 +54,7 @@ interface OccurrencesContextValue {
   occurrences: Occurrence[];
   evidencesByOccurrence: Record<string, Evidence[]>;
   diagnosesByOccurrence: Record<string, Diagnosis>;
+  pollingTitleIds: Record<string, boolean>;
   isLoading: boolean;
   error: string | null;
   apiStatus: ApiConnectivityStatus;
@@ -80,10 +86,97 @@ export const OccurrencesProvider: React.FC<{ children: React.ReactNode }> = ({
   const [diagnosesByOccurrence, setDiagnosesByOccurrence] = useState<
     Record<string, Diagnosis>
   >({});
+  const [pollingTitleIds, setPollingTitleIds] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [apiStatus, setApiStatus] =
     useState<ApiConnectivityStatus>("checking");
+
+  const occurrencesRef = useRef<Occurrence[]>([]);
+  useEffect(() => {
+    occurrencesRef.current = occurrences;
+  }, [occurrences]);
+
+  const pollTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map(),
+  );
+
+  const stopTitlePolling = useCallback((occurrenceId: string) => {
+    const timer = pollTimersRef.current.get(occurrenceId);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      pollTimersRef.current.delete(occurrenceId);
+    }
+    setPollingTitleIds((prev) => {
+      if (!prev[occurrenceId]) return prev;
+      const next = { ...prev };
+      delete next[occurrenceId];
+      return next;
+    });
+  }, []);
+
+  const clearAllTitlePolling = useCallback(() => {
+    for (const timer of pollTimersRef.current.values()) {
+      clearTimeout(timer);
+    }
+    pollTimersRef.current.clear();
+    setPollingTitleIds({});
+  }, []);
+
+  useEffect(() => {
+    const timers = pollTimersRef.current;
+    return () => {
+      for (const timer of timers.values()) {
+        clearTimeout(timer);
+      }
+      timers.clear();
+    };
+  }, []);
+
+  /**
+   * Inicia um polling curto (SPEC-07 RF-06 / CA-06: 3 tentativas a cada 2s)
+   * consultando GET /occurrences/:id até que o título deixe de ser genérico ou expire.
+   */
+  const pollOccurrenceTitle = useCallback(
+    (
+      occurrenceId: string,
+      maxAttempts: number = TITLE_POLL_MAX_ATTEMPTS,
+      intervalMs: number = TITLE_POLL_INTERVAL_MS,
+    ) => {
+      stopTitlePolling(occurrenceId);
+      setPollingTitleIds((prev) => ({ ...prev, [occurrenceId]: true }));
+
+      const scheduleAttempt = (attempt: number) => {
+        const timer = setTimeout(async () => {
+          pollTimersRef.current.delete(occurrenceId);
+          try {
+            const latest = await api.getOccurrence(occurrenceId);
+            setOccurrences((prev) =>
+              prev.map((occ) => (occ.id === occurrenceId ? latest : occ)),
+            );
+
+            if (latest.title !== GENERIC_TITLE) {
+              stopTitlePolling(occurrenceId);
+              return;
+            }
+          } catch {
+            // Falha transitória na consulta não interrompe o fluxo da UI
+          }
+
+          if (attempt < maxAttempts) {
+            scheduleAttempt(attempt + 1);
+          } else {
+            stopTitlePolling(occurrenceId);
+          }
+        }, intervalMs);
+
+        pollTimersRef.current.set(occurrenceId, timer);
+      };
+
+      scheduleAttempt(1);
+    },
+    [stopTitlePolling],
+  );
 
   const markDiagnosisOutdated = useCallback((occurrenceId: string) => {
     setDiagnosesByOccurrence((prev) => {
@@ -147,12 +240,13 @@ export const OccurrencesProvider: React.FC<{ children: React.ReactNode }> = ({
     if (user) {
       void refreshOccurrences();
     } else {
+      clearAllTitlePolling();
       setOccurrences([]);
       setEvidencesByOccurrence({});
       setDiagnosesByOccurrence({});
       setIsLoading(false);
     }
-  }, [user, profile?.id, refreshOccurrences]);
+  }, [user, profile?.id, refreshOccurrences, clearAllTitlePolling]);
 
   const loadOccurrenceDetails = useCallback(async (occurrenceId: string) => {
     try {
@@ -188,11 +282,12 @@ export const OccurrencesProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const createOccurrence = useCallback(
     async (input: CreateOccurrenceInput): Promise<Occurrence> => {
+      const trimmedDescription = input.description?.trim() || undefined;
       const created = await api.createOccurrence({
         apiName: input.apiName.trim(),
         url: input.url.trim(),
         method: input.method,
-        description: input.description?.trim() || undefined,
+        description: trimmedDescription,
       });
 
       setApiStatus("online");
@@ -201,21 +296,33 @@ export const OccurrencesProvider: React.FC<{ children: React.ReactNode }> = ({
         ...prev.filter((o) => o.id !== created.id),
       ]);
       setEvidencesByOccurrence((prev) => ({ ...prev, [created.id]: [] }));
+
+      // SPEC-07 RF-06 / CA-06: dispara polling curto quando há descrição e título genérico
+      if (trimmedDescription && created.title === GENERIC_TITLE) {
+        pollOccurrenceTitle(created.id);
+      }
+
       return created;
     },
-    [],
+    [pollOccurrenceTitle],
   );
 
   const updateOccurrence = useCallback(
     async (id: string, input: UpdateOccurrenceInput): Promise<Occurrence> => {
+      const existing = occurrencesRef.current.find((occ) => occ.id === id);
+      const hadDescription = Boolean(
+        existing?.description && existing.description.trim() !== "",
+      );
+      const nextDescription =
+        input.description !== undefined ? input.description.trim() : undefined;
+      const addingDescriptionFirstTime =
+        !hadDescription && Boolean(nextDescription && nextDescription !== "");
+
       const updated = await api.updateOccurrence(id, {
         apiName: input.apiName?.trim(),
         url: input.url?.trim(),
         method: input.method,
-        description:
-          input.description !== undefined
-            ? input.description.trim()
-            : undefined,
+        description: nextDescription,
       });
 
       setApiStatus("online");
@@ -223,13 +330,20 @@ export const OccurrencesProvider: React.FC<{ children: React.ReactNode }> = ({
         prev.map((occ) => (occ.id === id ? updated : occ)),
       );
       markDiagnosisOutdated(id);
+
+      // SPEC-07 RF-02 / RF-06: acompanha geração assíncrona na primeira inclusão de descrição
+      if (addingDescriptionFirstTime && updated.title === GENERIC_TITLE) {
+        pollOccurrenceTitle(id);
+      }
+
       return updated;
     },
-    [markDiagnosisOutdated],
+    [markDiagnosisOutdated, pollOccurrenceTitle],
   );
 
   const retryTitleGeneration = useCallback(
     async (id: string): Promise<Occurrence> => {
+      stopTitlePolling(id);
       const updated = await api.retryTitleGeneration(id);
       setApiStatus("online");
       setOccurrences((prev) =>
@@ -237,7 +351,7 @@ export const OccurrencesProvider: React.FC<{ children: React.ReactNode }> = ({
       );
       return updated;
     },
-    [],
+    [stopTitlePolling],
   );
 
   const addEvidence = useCallback(
@@ -310,6 +424,7 @@ export const OccurrencesProvider: React.FC<{ children: React.ReactNode }> = ({
         occurrences,
         evidencesByOccurrence,
         diagnosesByOccurrence,
+        pollingTitleIds,
         isLoading,
         error,
         apiStatus,

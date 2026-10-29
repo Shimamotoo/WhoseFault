@@ -33,6 +33,8 @@ export interface GeminiTitleGeneratorOptions {
   model?: string;
   secretDetector?: ISecretDetector;
   client?: GeminiContentClient;
+  /** Quando true, relança erro sanitizado em falhas do SDK para acionar retentativas da fila (SPEC-07). */
+  throwOnError?: boolean;
 }
 
 /**
@@ -59,6 +61,7 @@ function sanitizeGeneratedTitle(rawText: string | undefined): string | null {
  *
  * Cumpre:
  * - SPEC-01 (RF-03, RF-04, RN-06, RN-09, CA-05, CA-06, CA-13)
+ * - SPEC-07 (RF-03, RF-04 — suporte a retentativas via throwOnError no worker)
  * - ADR-003 (Isolamento do provedor e degradação graciosa)
  * - ADR-004 (Verificação prévia via ISecretDetector e proteção de credenciais em logs)
  */
@@ -66,6 +69,7 @@ export class GeminiTitleGenerator implements ITitleGenerator {
   private readonly apiKey: string | undefined;
   private readonly model: string;
   private readonly secretDetector: ISecretDetector;
+  private readonly throwOnError: boolean;
   private client: GeminiContentClient | undefined;
 
   constructor(options: GeminiTitleGeneratorOptions = {}) {
@@ -74,6 +78,7 @@ export class GeminiTitleGenerator implements ITitleGenerator {
     this.apiKey = rawKey && rawKey.trim().length > 0 ? rawKey.trim() : undefined;
     this.model = options.model ?? process.env.GEMINI_MODEL ?? DEFAULT_GEMINI_MODEL;
     this.secretDetector = options.secretDetector ?? defaultSecretDetector;
+    this.throwOnError = options.throwOnError ?? false;
     this.client = options.client;
   }
 
@@ -124,6 +129,10 @@ export class GeminiTitleGenerator implements ITitleGenerator {
         model: this.model,
         ...(errorStatus !== undefined ? { status: errorStatus } : {}),
       });
+
+      if (this.throwOnError) {
+        throw new Error('Falha ao gerar título via Gemini API.');
+      }
       return null;
     }
   }
