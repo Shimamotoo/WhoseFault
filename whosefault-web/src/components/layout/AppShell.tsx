@@ -82,17 +82,8 @@ export const AppShell: React.FC = () => {
                 <span className="text-xs font-bold tracking-tight text-zinc-100 leading-none">
                   WhoseFault
                 </span>
-                <span className="font-mono text-[10px] text-zinc-500 mt-0.5">
-                  api-inspector
-                </span>
               </div>
             </Link>
-            <Badge
-              variant="outline"
-              className="font-mono text-[10px] border-zinc-800 bg-zinc-900/80 text-zinc-400 px-1.5 py-0"
-            >
-              v1.1
-            </Badge>
           </div>
 
           {/* Primary Navigation */}
@@ -113,9 +104,6 @@ export const AppShell: React.FC = () => {
                 <span className="flex items-center gap-2">
                   <Layers className="h-3.5 w-3.5 text-zinc-400" />
                   Ocorrências
-                </span>
-                <span className="font-mono text-[11px] rounded bg-zinc-800/90 px-1.5 py-0.5 text-zinc-300">
-                  {occurrences.length}
                 </span>
               </Link>
             </nav>

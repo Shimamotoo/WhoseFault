@@ -12,4 +12,7 @@ export interface IOccurrenceRepository {
 
   /** Atualiza uma ocorrência existente. */
   update(occurrence: Occurrence): Promise<void>;
+
+  /** Remove uma ocorrência pelo seu identificador. */
+  delete(id: string): Promise<void>;
 }

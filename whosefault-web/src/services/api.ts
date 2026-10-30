@@ -209,6 +209,18 @@ export async function retryTitleGeneration(id: string): Promise<Occurrence> {
   return getOccurrence(id);
 }
 
+export async function deleteOccurrence(id: string): Promise<void> {
+  const res = await fetchWithAuth(
+    `${API_BASE_URL}/occurrences/${encodeURIComponent(id)}`,
+    {
+      method: "DELETE",
+    },
+  );
+  if (!res.ok) {
+    await handleErrorResponse(res, "Falha ao excluir ocorrência.");
+  }
+}
+
 export async function getEvidences(occurrenceId: string): Promise<Evidence[]> {
   const res = await fetchWithAuth(
     `${API_BASE_URL}/occurrences/${encodeURIComponent(occurrenceId)}/evidences`,

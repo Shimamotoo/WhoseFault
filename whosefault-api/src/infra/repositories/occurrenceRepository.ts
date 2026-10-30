@@ -26,6 +26,10 @@ export class InMemoryOccurrenceRepository implements IOccurrenceRepository {
     this.store.set(occurrence.id, occurrence);
   }
 
+  async delete(id: string): Promise<void> {
+    this.store.delete(id);
+  }
+
   /** Remove todos os dados armazenados — usado nos testes */
   clear(): void {
     this.store.clear();

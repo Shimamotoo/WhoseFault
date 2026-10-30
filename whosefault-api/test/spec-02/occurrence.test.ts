@@ -199,4 +199,32 @@ describe('SPEC-02 – Consultar ocorrências', () => {
     const response = await get('/api/occurrences/id-inexistente');
     expect(response.statusCode).toBe(404);
   });
+  // ---------- Exclusão de Ocorrência ----------
+  it('deve excluir uma ocorrência existente com status 204 e torná-la inacessível', async () => {
+    await occurrenceRepository.save(
+      Occurrence.create({
+        id: 'occ-para-deletar',
+        apiName: 'Stripe API',
+        method: 'DELETE',
+        url: 'https://api.stripe.com/v1/customers/123',
+      }),
+    );
+
+    const deleteRes = await app.inject({
+      method: 'DELETE',
+      url: '/api/occurrences/occ-para-deletar',
+    });
+    expect(deleteRes.statusCode).toBe(204);
+
+    const getRes = await get('/api/occurrences/occ-para-deletar');
+    expect(getRes.statusCode).toBe(404);
+  });
+
+  it('deve retornar 404 ao tentar excluir ocorrência inexistente', async () => {
+    const deleteRes = await app.inject({
+      method: 'DELETE',
+      url: '/api/occurrences/id-inexistente',
+    });
+    expect(deleteRes.statusCode).toBe(404);
+  });
 });

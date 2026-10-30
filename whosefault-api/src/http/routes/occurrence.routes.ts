@@ -2,6 +2,7 @@ import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import { listOccurrences } from '../../application/listOccurrences.js';
 import { createOccurrence } from '../../application/createOccurrence.js';
 import { updateOccurrence, OccurrenceNotFoundError } from '../../application/updateOccurrence.js';
+import { deleteOccurrence } from '../../application/deleteOccurrence.js';
 import { retryTitleGeneration } from '../../application/retryTitleGeneration.js';
 import type { IOccurrenceRepository } from '../../domain/repositories/IOccurrenceRepository.js';
 import type { IDiagnosisRepository } from '../../domain/repositories/IDiagnosisRepository.js';
@@ -158,6 +159,26 @@ const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app
       }
       req.log.error(err);
       return reply.code(500).send({ error: 'Falha ao gerar título.' });
+    }
+  });
+
+  // ------------------------------------------------------------------ //
+  // DELETE /occurrences/:id — Excluir ocorrência
+  // ------------------------------------------------------------------ //
+  app.delete('/occurrences/:id', { preHandler }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    try {
+      await deleteOccurrence(
+        { id, userId: req.user?.id },
+        occurrenceRepository,
+      );
+      return reply.code(204).send();
+    } catch (err) {
+      if (err instanceof OccurrenceNotFoundError) {
+        return reply.code(404).send({ error: err.message });
+      }
+      req.log.error(err);
+      return reply.code(500).send({ error: 'Falha ao excluir ocorrência.' });
     }
   });
 };

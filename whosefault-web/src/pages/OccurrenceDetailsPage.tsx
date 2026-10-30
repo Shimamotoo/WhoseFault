@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { useOccurrences } from "@/context/OccurrencesContext";
 import { HTTP_METHODS, type Evidence, type HttpMethod } from "@/types/domain";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Card,
   CardContent,
@@ -39,7 +40,6 @@ import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
-  Clock,
   Edit3,
   FileCode2,
   HelpCircle,
@@ -85,6 +85,7 @@ function getEvidenceSummary(ev: Evidence): string {
 
 export const OccurrenceDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const {
     occurrences,
     evidencesByOccurrence,
@@ -94,6 +95,7 @@ export const OccurrenceDetailsPage: React.FC = () => {
     updateOccurrence,
     retryTitleGeneration,
     deleteEvidence,
+    deleteOccurrence,
     requestDiagnosis,
   } = useOccurrences();
 
@@ -114,6 +116,9 @@ export const OccurrenceDetailsPage: React.FC = () => {
   );
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isDeletingEvidence, setIsDeletingEvidence] = useState(false);
+  const [deleteOccurrenceOpen, setDeleteOccurrenceOpen] = useState(false);
+  const [isDeletingOccurrence, setIsDeletingOccurrence] = useState(false);
+
 
   // Estado do formulário de edição da ocorrência
   const [editApiName, setEditApiName] = useState("");
@@ -252,6 +257,22 @@ export const OccurrenceDetailsPage: React.FC = () => {
     }
   };
 
+
+  const handleConfirmDeleteOccurrence = async () => {
+    if (!occurrence || isDeletingOccurrence) return;
+    setIsDeletingOccurrence(true);
+    try {
+      await deleteOccurrence(occurrence.id);
+      navigate("/occurrences");
+    } catch (err) {
+      setDetailsError(
+        err instanceof Error ? err.message : "Falha ao excluir ocorrência.",
+      );
+      setIsDeletingOccurrence(false);
+      setDeleteOccurrenceOpen(false);
+    }
+  };
+
   const handleConfirmDeleteEvidence = async () => {
     if (!evidenceToDelete || isDeletingEvidence) return;
     setIsDeletingEvidence(true);
@@ -335,9 +356,6 @@ export const OccurrenceDetailsPage: React.FC = () => {
               >
                 {occurrence.apiName}
               </Badge>
-              <span className="font-mono text-[11px] text-zinc-500">
-                ID: {occurrence.id}
-              </span>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -369,54 +387,43 @@ export const OccurrenceDetailsPage: React.FC = () => {
 
               <Button
                 type="button"
+                variant="outline"
                 size="sm"
                 disabled={isGeneratingDiagnosis}
-                onClick={() => void handleRequestDiagnosis()}
-                data-testid="btn-request-diagnosis"
-                className="bg-zinc-100 text-zinc-950 hover:bg-white font-semibold"
+                onClick={() => setDeleteOccurrenceOpen(true)}
+                data-testid="btn-delete-occurrence"
+                className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border-rose-500/30"
               >
-                {isGeneratingDiagnosis ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Solicitando Diagnóstico...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Solicitar Diagnóstico IA
-                  </>
-                )}
+                <Trash2 className="h-3.5 w-3.5" />
+                Excluir
               </Button>
             </div>
           </div>
 
           {/* Título Principal da Ocorrência */}
           <div className="space-y-1">
-            <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
-              Título Atual da Ocorrência
-            </div>
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h1
-                data-testid="occurrence-detail-title"
-                className={cn(
-                  "text-base sm:text-lg font-semibold tracking-tight",
-                  occurrence.title === "Ocorrência sem descrição"
-                    ? "text-zinc-400 italic"
-                    : "text-zinc-50",
-                )}
+            {isPollingTitle ? (
+              <div
+                data-testid="occurrence-detail-title-polling"
+                className="py-1"
               >
-                {occurrence.title}
-              </h1>
-              {isPollingTitle && (
-                <span
-                  data-testid="occurrence-detail-title-polling"
-                  className="inline-flex items-center gap-1.5 rounded bg-blue-500/10 border border-blue-500/30 px-2 py-0.5 text-xs font-medium text-blue-300"
+                <Skeleton className="h-6 w-64 sm:w-80 rounded-md" />
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h1
+                  data-testid="occurrence-detail-title"
+                  className={cn(
+                    "text-base sm:text-lg font-semibold tracking-tight",
+                    occurrence.title === "Ocorrência sem descrição"
+                      ? "text-zinc-400 italic"
+                      : "text-zinc-50",
+                  )}
                 >
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Gerando título via IA...
-                </span>
-              )}
-            </div>
+                  {occurrence.title}
+                </h1>
+              </div>
+            )}
           </div>
 
           {/* Barra Monoespaçada com Método HTTP e URL Completa */}
@@ -431,14 +438,6 @@ export const OccurrenceDetailsPage: React.FC = () => {
           </div>
 
           {/* Metadados de Tempo */}
-          <div className="flex flex-wrap items-center gap-4 text-[11px] font-mono text-zinc-500 pt-1">
-            <span className="inline-flex items-center gap-1.5">
-              <Clock className="h-3 w-3" />
-              criada: {formatDateTime(occurrence.createdAt)}
-            </span>
-            <span>•</span>
-            <span>atualizada: {formatDateTime(occurrence.updatedAt)}</span>
-          </div>
         </div>
 
         {/* CORPO: Sistema de Abas (Aba 1: Geral | Aba 2: Evidências) */}
@@ -542,21 +541,6 @@ export const OccurrenceDetailsPage: React.FC = () => {
                     </CardTitle>
                   </div>
 
-                  {diagnosis && (
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "font-mono text-[10px]",
-                        diagnosis.isOutdated
-                          ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
-                          : "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
-                      )}
-                    >
-                      {diagnosis.isOutdated
-                        ? "STATUS: DESATUALIZADO"
-                        : "STATUS: ATUALIZADO"}
-                    </Badge>
-                  )}
                 </div>
                 <CardDescription>
                   Análise estruturada de fatos observados, hipóteses de causa e informações faltantes.
@@ -988,6 +972,44 @@ export const OccurrenceDetailsPage: React.FC = () => {
         open={createEvidenceOpen}
         onOpenChange={setCreateEvidenceOpen}
       />
+
+
+      {/* Modal de Confirmação de Exclusão Definitiva de Ocorrência */}
+      <Dialog
+        open={deleteOccurrenceOpen}
+        onOpenChange={(open) => !isDeletingOccurrence && setDeleteOccurrenceOpen(open)}
+      >
+        <DialogContent className="sm:max-w-[460px]">
+          <DialogHeader>
+            <DialogTitle>Confirmar Exclusão de Ocorrência</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir a ocorrência{" "}
+              <strong className="text-zinc-100">{occurrence.title}</strong> ({occurrence.apiName})?
+              <br /><br />
+              <span className="text-rose-300 font-medium">Atenção:</span> Todas as evidências técnicas e diagnósticos vinculados serão excluídos permanentemente.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isDeletingOccurrence}
+              onClick={() => setDeleteOccurrenceOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={isDeletingOccurrence}
+              data-testid="btn-confirm-delete-occurrence"
+              onClick={() => void handleConfirmDeleteOccurrence()}
+            >
+              {isDeletingOccurrence ? "Excluindo..." : "Excluir Definitivamente"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal de Confirmação de Exclusão Definitiva de Evidência */}
       <Dialog

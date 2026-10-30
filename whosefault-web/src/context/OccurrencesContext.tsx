@@ -65,6 +65,7 @@ interface OccurrencesContextValue {
     id: string,
     input: UpdateOccurrenceInput,
   ) => Promise<Occurrence>;
+  deleteOccurrence: (id: string) => Promise<void>;
   retryTitleGeneration: (id: string) => Promise<Occurrence>;
   addEvidence: (input: CreateEvidenceInput) => Promise<Evidence>;
   deleteEvidence: (occurrenceId: string, evidenceId: string) => Promise<void>;
@@ -341,6 +342,26 @@ export const OccurrencesProvider: React.FC<{ children: React.ReactNode }> = ({
     [markDiagnosisOutdated, pollOccurrenceTitle],
   );
 
+  
+  const deleteOccurrence = useCallback(
+    async (id: string): Promise<void> => {
+      stopTitlePolling(id);
+      await api.deleteOccurrence(id);
+      setOccurrences((prev) => prev.filter((occ) => occ.id !== id));
+      setEvidencesByOccurrence((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      setDiagnosesByOccurrence((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    },
+    [stopTitlePolling],
+  );
+
   const retryTitleGeneration = useCallback(
     async (id: string): Promise<Occurrence> => {
       stopTitlePolling(id);
@@ -432,6 +453,7 @@ export const OccurrencesProvider: React.FC<{ children: React.ReactNode }> = ({
         loadOccurrenceDetails,
         createOccurrence,
         updateOccurrence,
+        deleteOccurrence,
         retryTitleGeneration,
         addEvidence,
         deleteEvidence,

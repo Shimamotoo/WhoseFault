@@ -78,6 +78,12 @@ export class PrismaOccurrenceRepository implements IOccurrenceRepository {
       },
     });
   }
+
+  async delete(id: string): Promise<void> {
+    await this.db.occurrence.delete({
+      where: { id },
+    });
+  }
 }
 
 export const prismaOccurrenceRepository = new PrismaOccurrenceRepository();
