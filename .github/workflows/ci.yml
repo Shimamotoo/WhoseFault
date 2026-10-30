@@ -1,0 +1,90 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch: # Permite disparar manualmente pelo botão no GitHub
+
+jobs:
+  # -------------------------------------------------------------
+  # Job 1: Testes e Validação de Tipos
+  # -------------------------------------------------------------
+  validate:
+    name: Test & Build Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do Código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: |
+            whosefault-api/package-lock.json
+            whosefault-web/package-lock.json
+
+      - name: Validar API (Testes Unitários e Typecheck)
+        run: |
+          cd whosefault-api
+          npm ci
+          npx prisma generate
+          npm run typecheck
+          npm run test:unit
+
+      - name: Validar Frontend (Build)
+        run: |
+          cd whosefault-web
+          npm ci
+          npm run build
+
+  # -------------------------------------------------------------
+  # Job 2: Build e Push das Imagens Docker para o Docker Hub
+  # (Executado apenas em commits na branch main)
+  # -------------------------------------------------------------
+  build-and-push:
+    name: Docker Build & Push
+    needs: validate
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do Código
+        uses: actions/checkout@v4
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login no Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Build e Push da API
+      - name: Build & Push - whosefault-api
+        uses: docker/build-push-action@v6
+        with:
+          context: ./whosefault-api
+          file: ./whosefault-api/Dockerfile
+          push: true
+          tags: |
+            shiimamoto/whosefault-api:latest
+            shiimamoto/whosefault-api:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Build e Push do Web Frontend
+      - name: Build & Push - whosefault-web
+        uses: docker/build-push-action@v6
+        with:
+          context: ./whosefault-web
+          file: ./whosefault-web/Dockerfile
+          push: true
+          tags: |
+            shiimamoto/whosefault-web:latest
+            shiimamoto/whosefault-web:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
