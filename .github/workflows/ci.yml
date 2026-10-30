@@ -9,11 +9,27 @@ on:
 
 jobs:
   # -------------------------------------------------------------
-  # Job 1: Testes e Validação de Tipos
+  # Job 1: Testes e Validação Completa (com PostgreSQL para Integração)
   # -------------------------------------------------------------
   validate:
     name: Test & Build Validation
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: whosefault_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout do Código
         uses: actions/checkout@v4
@@ -27,13 +43,17 @@ jobs:
             whosefault-api/package-lock.json
             whosefault-web/package-lock.json
 
-      - name: Validar API (Testes Unitários e Typecheck)
+      - name: Validar API (Migrações, Typecheck e Testes Completos)
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/whosefault_test?schema=public
+          DATABASE_URL_TEST: postgresql://postgres:postgres@localhost:5432/whosefault_test?schema=public
         run: |
           cd whosefault-api
           npm ci
           npx prisma generate
+          npx prisma migrate deploy
           npm run typecheck
-          npm run test:unit
+          npm test
 
       - name: Validar Frontend (Build)
         run: |
