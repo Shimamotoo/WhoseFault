@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import {
   GenerateDiagnosisUseCase,
   SecurityError,
@@ -18,6 +18,7 @@ import {
   SensitiveDataDetectedError,
   type ISecretDetector,
 } from '../../domain/services/ISecretDetector.js';
+import type { IStorageService } from '../../domain/services/IStorageService.js';
 import { defaultSecretDetector } from '../../domain/services/secretDetector.js';
 
 export interface DiagnosisRoutesOptions {
@@ -26,17 +27,22 @@ export interface DiagnosisRoutesOptions {
   diagnosisRepository: IDiagnosisRepository;
   diagnosisGenerator: IDiagnosisGenerator;
   secretDetector?: ISecretDetector;
+  storageService?: IStorageService;
+  authHook?: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 }
 
-/** Rotas referentes ao Diagnóstico Assistido por IA (SPEC-04) */
+/** Rotas referentes ao Diagnóstico Assistido por IA (SPEC-04 e SPEC-08) */
 const diagnosisRoutes: FastifyPluginAsync<DiagnosisRoutesOptions> = async (app, opts) => {
   const {
     occurrenceRepository,
     evidenceRepository,
     diagnosisRepository,
     diagnosisGenerator,
+    storageService,
+    authHook,
   } = opts;
   const secretDetector = opts.secretDetector ?? defaultSecretDetector;
+  const preHandler = authHook ? [authHook] : [];
 
   const generateDiagnosisUseCase = new GenerateDiagnosisUseCase({
     occurrenceRepository,
@@ -44,12 +50,13 @@ const diagnosisRoutes: FastifyPluginAsync<DiagnosisRoutesOptions> = async (app, 
     diagnosisRepository,
     diagnosisGenerator,
     secretDetector,
+    storageService,
   });
 
   // ------------------------------------------------------------------ //
   // POST /occurrences/:id/diagnosis — Solicitar diagnóstico (SPEC-04 RF-01 a RF-06)
   // ------------------------------------------------------------------ //
-  app.post('/occurrences/:id/diagnosis', async (req, reply) => {
+  app.post('/occurrences/:id/diagnosis', { preHandler }, async (req, reply) => {
     const { id } = req.params as { id: string };
 
     try {
@@ -106,7 +113,7 @@ const diagnosisRoutes: FastifyPluginAsync<DiagnosisRoutesOptions> = async (app, 
   // ------------------------------------------------------------------ //
   // GET /occurrences/:id/diagnosis — Consultar diagnóstico salvo (SPEC-04 RF-08)
   // ------------------------------------------------------------------ //
-  app.get('/occurrences/:id/diagnosis', async (req, reply) => {
+  app.get('/occurrences/:id/diagnosis', { preHandler }, async (req, reply) => {
     const { id } = req.params as { id: string };
 
     try {

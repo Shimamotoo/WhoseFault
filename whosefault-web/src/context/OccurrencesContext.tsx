@@ -46,6 +46,7 @@ export interface CreateEvidenceInput {
   content?: string;
   context?: string;
   notes?: string;
+  file?: File;
 }
 
 export type ApiConnectivityStatus = "checking" | "online" | "offline";
@@ -377,28 +378,41 @@ export const OccurrencesProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const addEvidence = useCallback(
     async (input: CreateEvidenceInput): Promise<Evidence> => {
-      const created = await api.createEvidence(input.occurrenceId, {
-        type: input.type,
-        method: input.type === "HTTP_REQUEST" ? input.method : undefined,
-        url: input.type === "HTTP_REQUEST" ? input.url?.trim() : undefined,
-        statusCode:
-          input.type === "HTTP_RESPONSE" ? input.statusCode : undefined,
-        headers:
-          input.type === "HTTP_REQUEST" || input.type === "HTTP_RESPONSE"
-            ? input.headers
-            : undefined,
-        payload: input.type === "HTTP_REQUEST" ? input.payload : undefined,
-        body: input.type === "HTTP_RESPONSE" ? input.body : undefined,
-        content:
-          input.type === "ERROR_LOG" || input.type === "MANUAL_NOTE"
-            ? input.content
-            : undefined,
-        context: input.type === "ERROR_LOG" ? input.context : undefined,
-        notes:
-          input.type === "HTTP_REQUEST" || input.type === "HTTP_RESPONSE"
-            ? input.notes
-            : undefined,
-      });
+      let created: Evidence;
+
+      if (input.type === "IMAGE") {
+        if (!input.file) {
+          throw new Error("Selecione um arquivo de imagem para enviar.");
+        }
+        created = await api.uploadEvidenceImage(
+          input.occurrenceId,
+          input.file,
+          input.notes,
+        );
+      } else {
+        created = await api.createEvidence(input.occurrenceId, {
+          type: input.type,
+          method: input.type === "HTTP_REQUEST" ? input.method : undefined,
+          url: input.type === "HTTP_REQUEST" ? input.url?.trim() : undefined,
+          statusCode:
+            input.type === "HTTP_RESPONSE" ? input.statusCode : undefined,
+          headers:
+            input.type === "HTTP_REQUEST" || input.type === "HTTP_RESPONSE"
+              ? input.headers
+              : undefined,
+          payload: input.type === "HTTP_REQUEST" ? input.payload : undefined,
+          body: input.type === "HTTP_RESPONSE" ? input.body : undefined,
+          content:
+            input.type === "ERROR_LOG" || input.type === "MANUAL_NOTE"
+              ? input.content
+              : undefined,
+          context: input.type === "ERROR_LOG" ? input.context : undefined,
+          notes:
+            input.type === "HTTP_REQUEST" || input.type === "HTTP_RESPONSE"
+              ? input.notes
+              : undefined,
+        });
+      }
 
       setApiStatus("online");
       setEvidencesByOccurrence((prev) => ({

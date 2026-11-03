@@ -1,6 +1,7 @@
 import { createServer } from './http/server.js';
 import { GeminiTitleGenerator } from './infra/ai/geminiTitleGenerator.js';
 import { GeminiDiagnosisAdapter } from './infra/ai/geminiDiagnosisAdapter.js';
+import { GcsStorageService } from './infra/storage/gcsStorageService.js';
 import { BullMQTitleQueue } from './infra/queue/bullmqTitleQueue.js';
 import { createTitleWorker } from './infra/queue/titleWorker.js';
 import { prismaOccurrenceRepository } from './infra/repositories/prismaOccurrenceRepository.js';
@@ -17,10 +18,13 @@ const titleWorker = createTitleWorker({
   titleGenerator: new GeminiTitleGenerator({ throwOnError: true }),
 });
 
+const storageService = new GcsStorageService();
+
 const app = createServer({
   titleGenerator: new GeminiTitleGenerator(),
   titleQueue,
-  diagnosisGenerator: new GeminiDiagnosisAdapter(),
+  diagnosisGenerator: new GeminiDiagnosisAdapter({ storageService }),
+  storageService,
 });
 
 // Graceful shutdown coordenado entre Fastify, Worker e Fila (SPEC-07 §2)

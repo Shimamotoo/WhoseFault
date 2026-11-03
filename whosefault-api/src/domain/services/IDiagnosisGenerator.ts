@@ -25,9 +25,24 @@ export class DiagnosisProviderError extends Error {
   }
 }
 
+export interface DiagnosisInlineImage {
+  evidenceId: string;
+  mimeType: string;
+  base64Data: string;
+  notes?: string;
+}
+
+export interface GenerateDiagnosisOptions {
+  images?: DiagnosisInlineImage[];
+  unavailableImageEvidenceIds?: string[];
+}
+
 /**
- * Contrato para o adaptador de geração de diagnóstico assistido por IA (SPEC-04 / ADR-003).
+ * Contrato para o adaptador de geração de diagnóstico assistido por IA (SPEC-04 / SPEC-08 / ADR-003).
  */
 export interface IDiagnosisGenerator {
-  generate(context: DiagnosisContext): Promise<DiagnosisResult>;
+  generate(
+    context: DiagnosisContext,
+    options?: GenerateDiagnosisOptions,
+  ): Promise<DiagnosisResult>;
 }

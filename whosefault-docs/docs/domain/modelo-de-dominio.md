@@ -154,7 +154,14 @@ Uma resposta pode ser registrada sem uma evidência de requisição corresponden
 
 - Conteúdo textual: obrigatório.
 
-Na V1, as evidências serão inseridas manualmente por meio de texto. Não haverá upload de arquivos nem captura automática de tráfego.
+**5. Evidência em Foto (`IMAGE` — evolução pós-V1 introduzida na SPEC-08)**
+
+- Referência de armazenamento no Cloud Storage (`storagePath` em `url`): obrigatória.
+- Metadados técnicos (`contentType`, `sizeBytes`, `filename`): registrados em cabeçalhos de metadados.
+- Texto complementar / observações (`notes`): opcional.
+- Restrições de domínio: formatos `image/jpeg`, `image/png` e `image/webp`, limite máximo de 5MB por imagem e até 5 fotos por ocorrência. A imagem é convertida sob demanda para Base64 exclusivamente durante a chamada multimodal à IA, sem persistência de Base64 no banco relacional.
+
+> **Nota histórica da V1:** Na V1 original, as evidências eram inseridas exclusivamente por meio de texto; o suporte a upload de fotos e capturas de tela foi introduzido posteriormente pela [SPEC-08](../specs/SPEC-08-evidencias-em-foto.md).
 
 ### 4.4. Regras de negócio
 

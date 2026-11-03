@@ -15,9 +15,19 @@ export const EVIDENCE_TYPES = [
   "HTTP_RESPONSE",
   "ERROR_LOG",
   "MANUAL_NOTE",
+  "IMAGE",
 ] as const;
 
 export type EvidenceType = (typeof EVIDENCE_TYPES)[number];
+
+export const ALLOWED_IMAGE_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+] as const;
+
+export const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB (SPEC-08 RF-02)
+export const MAX_IMAGES_PER_OCCURRENCE = 5; // SPEC-08 RF-02
 
 export interface Evidence {
   id: string;

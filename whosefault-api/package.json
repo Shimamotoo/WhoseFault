@@ -24,6 +24,8 @@
   "type": "module",
   "dependencies": {
     "@fastify/cors": "^11.3.1",
+    "@fastify/multipart": "^10.1.7",
+    "@google-cloud/storage": "^8.4.0",
     "@google/genai": "^2.31.0",
     "@prisma/client": "^6.4.1",
     "bullmq": "^6.5.1",

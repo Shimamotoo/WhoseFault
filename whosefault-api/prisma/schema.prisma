@@ -12,6 +12,7 @@ enum EvidenceType {
   HTTP_RESPONSE
   ERROR_LOG
   MANUAL_NOTE
+  IMAGE
 }
 
 model User {

@@ -9,7 +9,11 @@ import type { Occurrence } from '../../domain/occurrence.js';
 import type { IDiagnosisRepository } from '../../domain/repositories/IDiagnosisRepository.js';
 import type { IEvidenceRepository } from '../../domain/repositories/IEvidenceRepository.js';
 import type { IOccurrenceRepository } from '../../domain/repositories/IOccurrenceRepository.js';
-import type { IDiagnosisGenerator } from '../../domain/services/IDiagnosisGenerator.js';
+import type {
+  DiagnosisInlineImage,
+  IDiagnosisGenerator,
+} from '../../domain/services/IDiagnosisGenerator.js';
+import type { IStorageService } from '../../domain/services/IStorageService.js';
 import {
   SensitiveDataDetectedError,
   type ISecretDetector,
@@ -97,17 +101,19 @@ export interface GenerateDiagnosisDependencies {
   diagnosisGenerator: IDiagnosisGenerator;
   diagnosisRepository?: IDiagnosisRepository;
   secretDetector?: ISecretDetector;
+  storageService?: IStorageService;
 }
 
 /**
- * Caso de Uso: Solicitar e gerar diagnóstico assistido por IA para uma ocorrência (SPEC-04).
+ * Caso de Uso: Solicitar e gerar diagnóstico assistido por IA para uma ocorrência (SPEC-04 / SPEC-08).
  *
  * Passos:
  * 1. Busca a Ocorrência e todas as Evidências associadas, armazenando o maior updatedAt e assinatura do estado.
  * 2. Executa o double-check de segurança via ISecretDetector sobre o contexto compilado (lança SecurityError se detectar segredo).
- * 3. Aciona o adaptador de IA (IDiagnosisGenerator / GeminiDiagnosisAdapter).
- * 4. Antes de persistir, revalida a concorrência verificando se updatedAt ou a lista de evidências mudaram no banco; se mudou, descarta silenciosamente.
- * 5. Executa o UPSERT do diagnóstico salvando context e result em JSONB com isOutdated = false.
+ * 3. Recupera sob demanda e converte para Base64 as evidências do tipo IMAGE (SPEC-08 RF-05), sem persistir Base64 no banco.
+ * 4. Aciona o adaptador de IA (IDiagnosisGenerator / GeminiDiagnosisAdapter).
+ * 5. Antes de persistir, revalida a concorrência verificando se updatedAt ou a lista de evidências mudaram no banco; se mudou, descarta silenciosamente.
+ * 6. Executa o UPSERT do diagnóstico salvando context e result em JSONB com isOutdated = false.
  */
 export class GenerateDiagnosisUseCase {
   private readonly occurrenceRepository: IOccurrenceRepository;
@@ -115,6 +121,7 @@ export class GenerateDiagnosisUseCase {
   private readonly diagnosisGenerator: IDiagnosisGenerator;
   private readonly diagnosisRepository: IDiagnosisRepository;
   private readonly secretDetector: ISecretDetector;
+  private readonly storageService: IStorageService | undefined;
 
   constructor(deps: GenerateDiagnosisDependencies) {
     this.occurrenceRepository = deps.occurrenceRepository;
@@ -122,6 +129,7 @@ export class GenerateDiagnosisUseCase {
     this.diagnosisGenerator = deps.diagnosisGenerator;
     this.diagnosisRepository = deps.diagnosisRepository ?? prismaDiagnosisRepository;
     this.secretDetector = deps.secretDetector ?? defaultSecretDetector;
+    this.storageService = deps.storageService;
   }
 
   async execute(occurrenceId: string): Promise<IGenerateDiagnosisOutput> {
@@ -171,8 +179,46 @@ export class GenerateDiagnosisUseCase {
       }
     }
 
-    // Passo 3: Chamar o GeminiDiagnosisAdapter (IDiagnosisGenerator)
-    const aiResult = await this.diagnosisGenerator.generate(context);
+    // Passo 3: Carregar sob demanda em Base64 as evidências de imagem (SPEC-08 RF-05, RNF-03)
+    const inlineImages: DiagnosisInlineImage[] = [];
+    const unavailableImageIds: string[] = [];
+
+    if (this.storageService) {
+      for (const evidence of evidences) {
+        if (evidence.type === 'IMAGE' && evidence.url) {
+          try {
+            const { base64, mimeType } = await this.storageService.getFileBase64(evidence.url);
+            inlineImages.push({
+              evidenceId: evidence.id,
+              mimeType: evidence.headers?.contentType || mimeType,
+              base64Data: base64,
+              notes: evidence.notes,
+            });
+          } catch {
+            unavailableImageIds.push(evidence.id);
+          }
+        }
+      }
+    }
+
+    // Passo 4: Chamar o GeminiDiagnosisAdapter (IDiagnosisGenerator)
+    const rawAiResult = await this.diagnosisGenerator.generate(context, {
+      images: inlineImages,
+      unavailableImageEvidenceIds: unavailableImageIds,
+    });
+
+    const missingInfo = [...rawAiResult.missing_information];
+    if (unavailableImageIds.length > 0) {
+      const unavailableMsg = `Não foi possível carregar no storage ${unavailableImageIds.length} evidência(s) de imagem (${unavailableImageIds.join(', ')}).`;
+      if (!missingInfo.some((info) => info.includes(unavailableImageIds[0]!))) {
+        missingInfo.push(unavailableMsg);
+      }
+    }
+
+    const aiResult: DiagnosisResult = {
+      ...rawAiResult,
+      missing_information: missingInfo,
+    };
 
     // Passo 4: Refazer a checagem de concorrência antes de persistir (RF-06 / RN-04 / CA-04)
     const currentOccurrence = await this.occurrenceRepository.findById(occurrenceId);

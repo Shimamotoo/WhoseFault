@@ -250,6 +250,48 @@ export async function createEvidence(
   return (await res.json()) as Evidence;
 }
 
+export async function uploadEvidenceImage(
+  occurrenceId: string,
+  file: File,
+  notes?: string,
+): Promise<Evidence> {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (notes && notes.trim() !== "") {
+    formData.append("notes", notes.trim());
+  }
+
+  const res = await fetchWithAuth(
+    `${API_BASE_URL}/occurrences/${encodeURIComponent(occurrenceId)}/evidences`,
+    {
+      method: "POST",
+      body: formData,
+    },
+  );
+  if (!res.ok) {
+    await handleErrorResponse(res, "Falha ao enviar foto de evidência.");
+  }
+  return (await res.json()) as Evidence;
+}
+
+export async function fetchEvidenceImageBlob(
+  occurrenceId: string,
+  evidenceId: string,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  const res = await fetchWithAuth(
+    `${API_BASE_URL}/occurrences/${encodeURIComponent(occurrenceId)}/evidences/${encodeURIComponent(evidenceId)}/image`,
+    {
+      method: "GET",
+      signal,
+    },
+  );
+  if (!res.ok) {
+    await handleErrorResponse(res, "Falha ao carregar imagem da evidência.");
+  }
+  return res.blob();
+}
+
 export async function deleteEvidence(
   occurrenceId: string,
   evidenceId: string,

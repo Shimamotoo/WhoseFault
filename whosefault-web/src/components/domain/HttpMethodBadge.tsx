@@ -80,6 +80,10 @@ export const EvidenceTypeBadge: React.FC<{
       label: "MANUAL_NOTE",
       style: "bg-zinc-500/15 text-zinc-300 border-zinc-600/40",
     },
+    IMAGE: {
+      label: "IMAGE",
+      style: "bg-teal-500/10 text-teal-300 border-teal-500/25",
+    },
   };
 
   const item = labels[type];
