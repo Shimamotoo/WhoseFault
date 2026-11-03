@@ -1,15 +1,18 @@
 import fastify, { type FastifyRequest, type FastifyReply } from 'fastify';
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
 import occurrenceRoutes from './routes/occurrence.routes.js';
 import evidenceRoutes from './routes/evidence.routes.js';
 import diagnosisRoutes from './routes/diagnosis.routes.js';
 import authRoutes from './routes/auth.routes.js';
+import { EVIDENCE_LIMITS } from '../domain/evidence.js';
 import type { IOccurrenceRepository } from '../domain/repositories/IOccurrenceRepository.js';
 import type { IEvidenceRepository } from '../domain/repositories/IEvidenceRepository.js';
 import type { IDiagnosisRepository } from '../domain/repositories/IDiagnosisRepository.js';
 import type { IUserRepository } from '../domain/repositories/IUserRepository.js';
 import type { ITokenVerifier } from '../domain/services/ITokenVerifier.js';
 import { InMemoryOccurrenceRepository } from '../infra/repositories/occurrenceRepository.js';
+import { InMemoryEvidenceRepository } from '../infra/repositories/evidenceRepository.js';
 import { diagnosisRepository as inMemoryDiagnosisRepository } from '../infra/repositories/diagnosisRepository.js';
 import { inMemoryUserRepository } from '../infra/repositories/userRepository.js';
 import { prismaOccurrenceRepository } from '../infra/repositories/prismaOccurrenceRepository.js';
@@ -24,6 +27,8 @@ import type { IDiagnosisGenerator } from '../domain/services/IDiagnosisGenerator
 import { StubDiagnosisGenerator } from '../infra/ai/stubDiagnosisGenerator.js';
 import type { ISecretDetector } from '../domain/services/ISecretDetector.js';
 import { defaultSecretDetector } from '../domain/services/secretDetector.js';
+import type { IStorageService } from '../domain/services/IStorageService.js';
+import { StubStorageService } from '../infra/storage/stubStorageService.js';
 import { FirebaseTokenVerifier } from '../infra/auth/firebaseTokenVerifier.js';
 import { StubTokenVerifier } from '../infra/auth/stubTokenVerifier.js';
 import { createAuthHook } from './hooks/authHook.js';
@@ -38,6 +43,7 @@ export interface ServerDependencies {
   titleQueue?: ITitleQueue;
   diagnosisGenerator?: IDiagnosisGenerator;
   secretDetector?: ISecretDetector;
+  storageService?: IStorageService;
   requireAuth?: boolean;
 }
 
@@ -45,14 +51,16 @@ export interface ServerDependencies {
  * Cria e configura a aplicação Fastify.
  * Mantém a camada de domínio livre de dependências externas.
  *
- * @param deps - Dependências injetáveis (repositórios, geradores de IA, fila de títulos, detector de segredos e autenticação).
+ * @param deps - Dependências injetáveis (repositórios, geradores de IA, fila de títulos, storage, detector de segredos e autenticação).
  */
 export function createServer(deps: ServerDependencies = {}) {
   const isInMemory = deps.occurrenceRepository instanceof InMemoryOccurrenceRepository;
 
   const {
     occurrenceRepository = prismaOccurrenceRepository,
-    evidenceRepository = prismaEvidenceRepository,
+    evidenceRepository = isInMemory
+      ? new InMemoryEvidenceRepository()
+      : prismaEvidenceRepository,
     diagnosisRepository = isInMemory
       ? inMemoryDiagnosisRepository
       : prismaDiagnosisRepository,
@@ -66,6 +74,7 @@ export function createServer(deps: ServerDependencies = {}) {
     titleQueue = new StubTitleQueue(),
     diagnosisGenerator = new StubDiagnosisGenerator(),
     secretDetector = defaultSecretDetector,
+    storageService = new StubStorageService(),
     requireAuth = false,
   } = deps;
 
@@ -93,6 +102,15 @@ export function createServer(deps: ServerDependencies = {}) {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
+  // Habilita suporte a upload multipart/form-data para evidências em foto (SPEC-08 RF-01, RF-02)
+  app.register(multipart, {
+    limits: {
+      fileSize: EVIDENCE_LIMITS.MAX_IMAGE_SIZE_BYTES,
+      files: 1,
+      fields: 10,
+    },
+  });
+
   // Hook estrito de autenticação
   const strictAuthHook = createAuthHook(tokenVerifier, userRepository);
 
@@ -115,9 +133,11 @@ export function createServer(deps: ServerDependencies = {}) {
   app.register(occurrenceRoutes, {
     prefix: '/api',
     occurrenceRepository,
+    evidenceRepository,
     titleGenerator,
     titleQueue,
     diagnosisRepository,
+    storageService,
     authHook: conditionalAuthHook,
   });
   app.register(evidenceRoutes, {
@@ -126,6 +146,8 @@ export function createServer(deps: ServerDependencies = {}) {
     evidenceRepository,
     diagnosisRepository,
     secretDetector,
+    storageService,
+    authHook: conditionalAuthHook,
   });
   app.register(diagnosisRoutes, {
     prefix: '/api',
@@ -134,16 +156,21 @@ export function createServer(deps: ServerDependencies = {}) {
     diagnosisRepository,
     diagnosisGenerator,
     secretDetector,
+    storageService,
+    authHook: conditionalAuthHook,
   });
 
   // Tratamento de erro global - não expõe detalhes internos nem conteúdos sensíveis
-  app.setErrorHandler((error: Error & { statusCode?: number }, request, reply) => {
-    if (
-      error.message.includes(
-        'O sistema aceita somente conteúdo textual. Upload de arquivos não é permitido na V1.',
-      )
-    ) {
-      return reply.status(400).send({ error: error.message });
+  app.setErrorHandler((error: Error & { statusCode?: number; code?: string }, request, reply) => {
+    if (error.code === 'FST_REQ_FILE_TOO_LARGE' || error.code === 'FST_FILES_LIMIT') {
+      return reply.status(400).send({
+        error: 'O arquivo excede o limite máximo permitido de 5MB por imagem.',
+      });
+    }
+    if (error.code?.startsWith('FST_INVALID_MULTIPART')) {
+      return reply.status(400).send({
+        error: 'Formato multipart/form-data inválido.',
+      });
     }
     request.log.error({ errName: error.name }, 'Unhandled server error');
     reply.status(500).send({ error: 'Internal Server Error' });

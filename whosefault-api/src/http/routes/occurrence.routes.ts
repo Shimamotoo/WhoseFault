@@ -5,22 +5,34 @@ import { updateOccurrence, OccurrenceNotFoundError } from '../../application/upd
 import { deleteOccurrence } from '../../application/deleteOccurrence.js';
 import { retryTitleGeneration } from '../../application/retryTitleGeneration.js';
 import type { IOccurrenceRepository } from '../../domain/repositories/IOccurrenceRepository.js';
+import type { IEvidenceRepository } from '../../domain/repositories/IEvidenceRepository.js';
 import type { IDiagnosisRepository } from '../../domain/repositories/IDiagnosisRepository.js';
 import type { ITitleGenerator } from '../../domain/services/ITitleGenerator.js';
 import type { ITitleQueue } from '../../domain/services/ITitleQueue.js';
+import type { IStorageService } from '../../domain/services/IStorageService.js';
 import type { HttpMethod } from '../../domain/occurrence.js';
 
 export interface OccurrenceRoutesOptions {
   occurrenceRepository: IOccurrenceRepository;
+  evidenceRepository?: IEvidenceRepository;
   titleGenerator: ITitleGenerator;
   titleQueue: ITitleQueue;
   diagnosisRepository?: IDiagnosisRepository;
+  storageService?: IStorageService;
   authHook?: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
 }
 
 /** Rotas referentes a ocorrências */
 const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app, opts) => {
-  const { occurrenceRepository, titleGenerator, titleQueue, diagnosisRepository, authHook } = opts;
+  const {
+    occurrenceRepository,
+    evidenceRepository,
+    titleGenerator,
+    titleQueue,
+    diagnosisRepository,
+    storageService,
+    authHook,
+  } = opts;
 
   const preHandler = authHook ? [authHook] : [];
 
@@ -171,6 +183,8 @@ const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app
       await deleteOccurrence(
         { id, userId: req.user?.id },
         occurrenceRepository,
+        evidenceRepository,
+        storageService,
       );
       return reply.code(204).send();
     } catch (err) {

@@ -35,6 +35,7 @@ import {
   HttpStatusBadge,
 } from "@/components/domain/HttpMethodBadge";
 import { CreateEvidenceDialog } from "@/components/domain/CreateEvidenceDialog";
+import { EvidenceImagePreview } from "@/components/domain/EvidenceImagePreview";
 import {
   AlertCircle,
   AlertTriangle,
@@ -43,6 +44,7 @@ import {
   Edit3,
   FileCode2,
   HelpCircle,
+  ImageIcon,
   Layers,
   Lightbulb,
   Loader2,
@@ -78,6 +80,11 @@ function getEvidenceSummary(ev: Evidence): string {
   if (ev.type === "ERROR_LOG") {
     const firstLine = ev.content?.split("\n")[0] ?? "Log de erro";
     return firstLine.length > 90 ? `${firstLine.slice(0, 90)}...` : firstLine;
+  }
+  if (ev.type === "IMAGE") {
+    const filename = ev.headers?.filename ?? "Captura de tela";
+    const full = ev.notes ? `${filename} — ${ev.notes}` : filename;
+    return full.length > 90 ? `${full.slice(0, 90)}...` : full;
   }
   const text = ev.content ?? "Observação manual";
   return text.length > 90 ? `${text.slice(0, 90)}...` : text;
@@ -590,11 +597,23 @@ export const OccurrenceDetailsPage: React.FC = () => {
                         <span>Fatos Observados</span>
                       </div>
                       <ul className="space-y-1.5 rounded-md border border-zinc-800/80 bg-zinc-950/70 p-3.5 text-xs text-zinc-300 list-disc list-inside">
-                        {diagnosis.result.facts_observed.map((fact, idx) => (
-                          <li key={idx} className="leading-relaxed">
-                            {fact}
-                          </li>
-                        ))}
+                        {diagnosis.result.facts_observed.map((fact, idx) => {
+                          const isVisualFact =
+                            /\b(print|imagem|captura|visual|foto|screenshot)\b/i.test(
+                              fact,
+                            );
+                          return (
+                            <li key={idx} className="leading-relaxed">
+                              {isVisualFact && (
+                                <span className="mr-1.5 inline-flex items-center gap-1 rounded border border-teal-500/25 bg-teal-500/10 px-1.5 py-0.2 font-mono text-[10px] text-teal-300 align-middle">
+                                  <ImageIcon className="h-2.5 w-2.5" />
+                                  Visual
+                                </span>
+                              )}
+                              <span>{fact}</span>
+                            </li>
+                          );
+                        })}
                       </ul>
                     </div>
 
@@ -872,6 +891,14 @@ export const OccurrenceDetailsPage: React.FC = () => {
                                   {ev.content}
                                 </div>
                               </div>
+                            )}
+
+                            {/* Detalhes de IMAGE (SPEC-08 RF-08) */}
+                            {ev.type === "IMAGE" && (
+                              <EvidenceImagePreview
+                                occurrenceId={occurrence.id}
+                                evidence={ev}
+                              />
                             )}
                           </div>
                         </AccordionContent>

@@ -19,6 +19,7 @@ import {
   DiagnosisTimeoutError,
 } from '../../../domain/services/IDiagnosisGenerator.js';
 import type { DiagnosisContext } from '../../../domain/diagnosis.js';
+import { StubStorageService } from '../../../infra/storage/stubStorageService.js';
 
 describe('GeminiDiagnosisAdapter (SPEC-04 / ADR-003 / ADR-004)', () => {
   const originalEnv = process.env.GEMINI_API_KEY_FREETIER;
@@ -186,5 +187,104 @@ describe('GeminiDiagnosisAdapter (SPEC-04 / ADR-003 / ADR-004)', () => {
 
     await expect(adapterWithKey.generate(sampleContext)).rejects.toThrow(DiagnosisProviderError);
     expect(JSON.stringify(errorSpy.mock.calls)).not.toContain(FAKE_API_KEY);
+  });
+
+  it('SPEC-08 CA-05: deve converter imagem do storage em Base64 e enviar como inlineData multimodal ao Gemini', async () => {
+    const stubStorage = new StubStorageService();
+    const fakePngBytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    const uploaded = await stubStorage.uploadFile({
+      occurrenceId: 'occ-123',
+      evidenceId: 'ev-img-1',
+      filename: 'postman-502.png',
+      mimeType: 'image/png',
+      buffer: fakePngBytes,
+    });
+
+    const contextWithImage: DiagnosisContext = {
+      ...sampleContext,
+      evidences: [
+        ...sampleContext.evidences,
+        {
+          id: 'ev-img-1',
+          type: 'IMAGE',
+          url: uploaded.storagePath,
+          headers: { contentType: 'image/png', filename: 'postman-502.png' },
+          notes: 'Print do erro 502 no Postman',
+        },
+      ],
+    };
+
+    const validResponse = {
+      facts_observed: ['Captura de tela mostra HTTP 502 Bad Gateway no Postman.'],
+      hypotheses: [
+        {
+          cause: 'Gateway upstream indisponível.',
+          evidence_support: 'Confirmado tanto em ev-1 quanto visualmente na imagem ev-img-1.',
+        },
+      ],
+      missing_information: [],
+    };
+
+    mockGenerateContent.mockResolvedValueOnce({
+      text: JSON.stringify(validResponse),
+    });
+
+    const adapter = new GeminiDiagnosisAdapter({
+      apiKey: FAKE_API_KEY,
+      client: mockClient,
+      storageService: stubStorage,
+    });
+
+    const result = await adapter.generate(contextWithImage);
+
+    expect(result).toEqual(validResponse);
+    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+    const callArgs = mockGenerateContent.mock.calls[0]?.[0];
+    expect(Array.isArray(callArgs?.contents)).toBe(true);
+    expect(callArgs?.contents).toEqual(
+      expect.arrayContaining([
+        { text: JSON.stringify(contextWithImage) },
+        {
+          inlineData: {
+            mimeType: 'image/png',
+            data: fakePngBytes.toString('base64'),
+          },
+        },
+      ]),
+    );
+  });
+
+  it('SPEC-08 RF-05: deve prosseguir e registrar em missing_information quando imagem não puder ser lida do storage', async () => {
+    const stubStorage = new StubStorageService();
+    const contextWithMissingImage: DiagnosisContext = {
+      ...sampleContext,
+      evidences: [
+        ...sampleContext.evidences,
+        {
+          id: 'ev-img-missing',
+          type: 'IMAGE',
+          url: 'occurrences/occ-123/arquivo-ausente.png',
+          headers: { contentType: 'image/png' },
+        },
+      ],
+    };
+
+    mockGenerateContent.mockResolvedValueOnce({
+      text: JSON.stringify({
+        facts_observed: ['Status 502 em ev-1.'],
+        hypotheses: [{ cause: 'Falha upstream', evidence_support: 'ev-1' }],
+        missing_information: [],
+      }),
+    });
+
+    const adapter = new GeminiDiagnosisAdapter({
+      apiKey: FAKE_API_KEY,
+      client: mockClient,
+      storageService: stubStorage,
+    });
+
+    const result = await adapter.generate(contextWithMissingImage);
+
+    expect(result.missing_information.some((m) => m.includes('ev-img-missing'))).toBe(true);
   });
 });

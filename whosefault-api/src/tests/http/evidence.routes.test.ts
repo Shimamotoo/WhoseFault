@@ -239,7 +239,7 @@ describe('SPEC-03: Endpoints HTTP de Evidências (/api/occurrences/:occurrenceId
     expect(JSON.stringify(body)).not.toContain(rawSecret);
   });
 
-  it('CA-17: deve rejeitar upload de arquivos (multipart/form-data) com HTTP 400 na V1', async () => {
+  it('SPEC-08 RF-01: deve rejeitar upload multipart/form-data sem arquivo de imagem válido com HTTP 400', async () => {
     // Arrange
     const app = createTestServer();
 
@@ -255,7 +255,7 @@ describe('SPEC-03: Endpoints HTTP de Evidências (/api/occurrences/:occurrenceId
 
     // Assert
     expect(res.statusCode).toBe(400);
-    expect(res.json().error).toContain('Upload de arquivos não é permitido na V1');
+    expect(res.json().error).toContain('Arquivo de imagem obrigatório');
   });
 
   it('CORS: deve responder adequadamente a requisições pre-flight OPTIONS de origens permitidas', async () => {

@@ -224,7 +224,7 @@ describe('SPEC-03: Entidade Evidence (Domínio)', () => {
     expect(() => Evidence.create(propsWithSecret)).toThrow(SECRET_ALERT_MESSAGE);
   });
 
-  it('RN-03: deve aceitar apenas os quatro tipos de evidência permitidos na V1', () => {
+  it('RN-03 / SPEC-08: deve aceitar apenas os cinco tipos de evidência permitidos (incluindo IMAGE)', () => {
     // Arrange
     const invalidTypeProps = {
       occurrenceId,
@@ -238,10 +238,29 @@ describe('SPEC-03: Entidade Evidence (Domínio)', () => {
       'HTTP_RESPONSE',
       'ERROR_LOG',
       'MANUAL_NOTE',
+      'IMAGE',
     ]);
     expect(() => Evidence.create(invalidTypeProps)).toThrow(
       'Tipo de evidência inválido: FILE_ATTACHMENT.',
     );
+
+    const validImage = Evidence.create({
+      occurrenceId,
+      type: 'IMAGE',
+      url: `occurrences/${occurrenceId}/img-1.png`,
+      headers: { contentType: 'image/png', sizeBytes: '1024', filename: 'print.png' },
+      notes: 'Print da falha 502',
+    });
+    expect(validImage.type).toBe('IMAGE');
+    expect(validImage.url).toBe(`occurrences/${occurrenceId}/img-1.png`);
+
+    expect(() =>
+      Evidence.create({
+        occurrenceId,
+        type: 'IMAGE',
+        url: '../etc/passwd',
+      }),
+    ).toThrow('Caminho de armazenamento inválido');
   });
 
   it('RN-04: deve validar os limites máximos de caracteres definidos para URL, observações, payloads e logs', () => {

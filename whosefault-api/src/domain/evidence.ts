@@ -7,9 +7,18 @@ export const EVIDENCE_TYPES = [
   'HTTP_RESPONSE',
   'ERROR_LOG',
   'MANUAL_NOTE',
+  'IMAGE',
 ] as const;
 
 export type EvidenceType = (typeof EVIDENCE_TYPES)[number];
+
+export const ALLOWED_IMAGE_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+] as const;
+
+export type AllowedImageMimeType = (typeof ALLOWED_IMAGE_MIME_TYPES)[number];
 
 export const EVIDENCE_LIMITS = {
   MAX_URL_LENGTH: 2048,
@@ -18,6 +27,8 @@ export const EVIDENCE_LIMITS = {
   MAX_HEADERS_LENGTH: 8192,
   MIN_HTTP_STATUS: 100,
   MAX_HTTP_STATUS: 599,
+  MAX_IMAGE_SIZE_BYTES: 5 * 1024 * 1024, // 5MB (5.242.880 bytes) - SPEC-08 RF-02
+  MAX_IMAGES_PER_OCCURRENCE: 5, // SPEC-08 RF-02
 } as const;
 
 export interface EvidenceProps {
@@ -222,9 +233,43 @@ export class Evidence {
           `Observação manual excede o limite máximo de ${EVIDENCE_LIMITS.MAX_NOTE_LENGTH} caracteres.`,
         );
       }
+    } else if (props.type === 'IMAGE') {
+      if (!props.url || props.url.trim() === '') {
+        throw new Error('Caminho de armazenamento (storagePath) é obrigatório para evidência de imagem.');
+      }
+      const trimmedStoragePath = props.url.trim();
+      if (trimmedStoragePath.length > EVIDENCE_LIMITS.MAX_URL_LENGTH) {
+        throw new Error(
+          `Caminho da imagem excede o limite máximo de ${EVIDENCE_LIMITS.MAX_URL_LENGTH} caracteres.`,
+        );
+      }
+      if (trimmedStoragePath.includes('..')) {
+        throw new Error('Caminho de armazenamento inválido para evidência de imagem.');
+      }
+      if (validatedHeaders?.contentType !== undefined) {
+        const mime = validatedHeaders.contentType.toLowerCase();
+        if (!(ALLOWED_IMAGE_MIME_TYPES as readonly string[]).includes(mime)) {
+          throw new Error(
+            'Formato de imagem inválido. Apenas JPEG, PNG e WEBP são permitidos.',
+          );
+        }
+      }
+      if (validatedHeaders?.sizeBytes !== undefined) {
+        const size = Number(validatedHeaders.sizeBytes);
+        if (!Number.isFinite(size) || size <= 0 || size > EVIDENCE_LIMITS.MAX_IMAGE_SIZE_BYTES) {
+          throw new Error(
+            'O arquivo excede o tamanho máximo permitido de 5MB por imagem.',
+          );
+        }
+      }
+      if (props.notes !== undefined && props.notes.length > EVIDENCE_LIMITS.MAX_NOTE_LENGTH) {
+        throw new Error(
+          `Observações excedem o limite máximo de ${EVIDENCE_LIMITS.MAX_NOTE_LENGTH} caracteres.`,
+        );
+      }
     }
 
-    // Verificação de segurança antes de permitir a criação/persistência (RF-09 / RN-11 / CA-13)
+    // Verificação de segurança antes de permitir a criação/persistência (RF-09 / RN-11 / CA-13 / SPEC-08 RF-07)
     secretDetector.assertNoSecrets({
       url: props.url,
       headers: validatedHeaders,
@@ -245,10 +290,15 @@ export class Evidence {
       occurrenceId: props.occurrenceId.trim(),
       type: props.type,
       method: props.type === 'HTTP_REQUEST' ? props.method : undefined,
-      url: props.type === 'HTTP_REQUEST' ? props.url?.trim() : undefined,
+      url:
+        props.type === 'HTTP_REQUEST' || props.type === 'IMAGE'
+          ? props.url?.trim()
+          : undefined,
       statusCode: props.type === 'HTTP_RESPONSE' ? props.statusCode : undefined,
       headers:
-        props.type === 'HTTP_REQUEST' || props.type === 'HTTP_RESPONSE'
+        props.type === 'HTTP_REQUEST' ||
+        props.type === 'HTTP_RESPONSE' ||
+        props.type === 'IMAGE'
           ? validatedHeaders
           : undefined,
       payload: props.type === 'HTTP_REQUEST' ? props.payload : undefined,
@@ -257,7 +307,11 @@ export class Evidence {
         props.type === 'ERROR_LOG' || props.type === 'MANUAL_NOTE' ? props.content : undefined,
       context: props.type === 'ERROR_LOG' ? props.context : undefined,
       notes:
-        props.type === 'HTTP_REQUEST' || props.type === 'HTTP_RESPONSE' ? props.notes : undefined,
+        props.type === 'HTTP_REQUEST' ||
+        props.type === 'HTTP_RESPONSE' ||
+        props.type === 'IMAGE'
+          ? props.notes
+          : undefined,
       createdAt,
       updatedAt,
     });

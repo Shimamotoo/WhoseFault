@@ -5,19 +5,23 @@ import {
   DiagnosisProviderError,
   DiagnosisSchemaMismatchError,
   DiagnosisTimeoutError,
+  type DiagnosisInlineImage,
+  type GenerateDiagnosisOptions,
   type IDiagnosisGenerator,
 } from '../../domain/services/IDiagnosisGenerator.js';
+import type { IStorageService } from '../../domain/services/IStorageService.js';
 import { DEFAULT_GEMINI_MODEL } from './geminiTitleGenerator.js';
 
 export const DEFAULT_DIAGNOSIS_TIMEOUT_MS = 45_000;
 
 export const DIAGNOSIS_SYSTEM_INSTRUCTION =
   'Você é um engenheiro especialista em diagnóstico de falhas e incidentes em integrações de APIs. ' +
-  'Analise estritamente o contexto da ocorrência e as evidências fornecidas (requisições HTTP, respostas HTTP, logs de erro e observações manuais). ' +
+  'Analise estritamente o contexto da ocorrência e as evidências fornecidas (requisições HTTP, respostas HTTP, logs de erro, observações manuais e capturas de tela/fotos anexadas). ' +
+  'Quando houver imagens anexadas (prints de ferramentas como Postman, Insomnia, navegador/DevTools, terminais, logs visuais ou telas de erro), extraia minuciosamente códigos de status HTTP, cabeçalhos, mensagens de erro, payloads visíveis e correlacione-os com as evidências textuais. ' +
   'Não invente fatos, não assuma dados ausentes como certezas e não modifique os dados originais. ' +
   'Retorne exclusivamente um objeto JSON válido contendo: ' +
-  '1) "facts_observed": lista de fatos concretos diretamente observados nas evidências; ' +
-  '2) "hypotheses": lista de objetos com "cause" (hipótese técnica fundamentada para a falha) e "evidence_support" (quais evidências sustentam essa hipótese); ' +
+  '1) "facts_observed": lista de fatos concretos diretamente observados nas evidências textuais e visuais; ' +
+  '2) "hypotheses": lista de objetos com "cause" (hipótese técnica fundamentada para a falha) e "evidence_support" (quais evidências, inclusive visuais pelo ID, sustentam essa hipótese); ' +
   '3) "missing_information": lista de informações técnicas ausentes nas evidências que limitam a conclusão e ajudariam a refinar a investigação.';
 
 export const DiagnosisResultZodSchema = z.object({
@@ -66,6 +70,12 @@ export const GEMINI_DIAGNOSIS_RESPONSE_SCHEMA = {
   required: ['facts_observed', 'hypotheses', 'missing_information'],
 };
 
+export type GeminiDiagnosisContentPart =
+  | { text: string }
+  | { inlineData: { mimeType: string; data: string } };
+
+export type GeminiDiagnosisContents = string | GeminiDiagnosisContentPart[];
+
 /**
  * Interface mínima do cliente Gemini utilizada pelo adaptador de diagnóstico.
  * Facilita a injeção de mocks determinísticos nos testes unitários (ADR-003).
@@ -74,7 +84,7 @@ export interface GeminiDiagnosisContentClient {
   models: {
     generateContent(params: {
       model: string;
-      contents: string;
+      contents: GeminiDiagnosisContents;
       config?: {
         systemInstruction?: string;
         responseMimeType?: string;
@@ -91,6 +101,7 @@ export interface GeminiDiagnosisAdapterOptions {
   model?: string;
   timeoutMs?: number;
   client?: GeminiDiagnosisContentClient;
+  storageService?: IStorageService;
 }
 
 /**
@@ -98,6 +109,7 @@ export interface GeminiDiagnosisAdapterOptions {
  *
  * Cumpre:
  * - SPEC-04 (RF-04, RF-09, CA-01, CA-03, CA-06)
+ * - SPEC-08 (RF-05, CA-05 — Conversão sob demanda para Base64 e envio multimodal inlineData)
  * - ADR-003 (Isolamento do provedor e validação estrutural da resposta via Zod)
  * - ADR-004 (Uso exclusivo de GEMINI_API_KEY_FREETIER e proteção contra vazamento em logs)
  */
@@ -105,6 +117,7 @@ export class GeminiDiagnosisAdapter implements IDiagnosisGenerator {
   private readonly apiKey: string | undefined;
   private readonly model: string;
   private readonly timeoutMs: number;
+  private readonly storageService: IStorageService | undefined;
   private client: GeminiDiagnosisContentClient | undefined;
 
   constructor(options: GeminiDiagnosisAdapterOptions = {}) {
@@ -113,10 +126,14 @@ export class GeminiDiagnosisAdapter implements IDiagnosisGenerator {
     this.apiKey = rawKey && rawKey.trim().length > 0 ? rawKey.trim() : undefined;
     this.model = options.model ?? process.env.GEMINI_MODEL ?? DEFAULT_GEMINI_MODEL;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_DIAGNOSIS_TIMEOUT_MS;
+    this.storageService = options.storageService;
     this.client = options.client;
   }
 
-  async generate(context: DiagnosisContext): Promise<DiagnosisResult> {
+  async generate(
+    context: DiagnosisContext,
+    options?: GenerateDiagnosisOptions,
+  ): Promise<DiagnosisResult> {
     if (!this.apiKey) {
       throw new DiagnosisProviderError(
         'GEMINI_API_KEY_FREETIER não configurada para geração de diagnóstico.',
@@ -124,7 +141,48 @@ export class GeminiDiagnosisAdapter implements IDiagnosisGenerator {
     }
 
     const aiClient = this.getOrCreateClient(this.apiKey);
+
+    let resolvedImages: DiagnosisInlineImage[] = options?.images ? [...options.images] : [];
+    const unavailableIds: string[] = options?.unavailableImageEvidenceIds
+      ? [...options.unavailableImageEvidenceIds]
+      : [];
+
+    if (!options?.images && this.storageService) {
+      for (const ev of context.evidences) {
+        if (ev.type === 'IMAGE' && ev.url) {
+          try {
+            const { base64, mimeType } = await this.storageService.getFileBase64(ev.url);
+            resolvedImages.push({
+              evidenceId: ev.id,
+              mimeType: ev.headers?.contentType || mimeType,
+              base64Data: base64,
+              notes: ev.notes,
+            });
+          } catch {
+            unavailableIds.push(ev.id);
+          }
+        }
+      }
+    }
+
     const serializedContext = JSON.stringify(context);
+    const contents: GeminiDiagnosisContents =
+      resolvedImages.length === 0
+        ? serializedContext
+        : [
+            { text: serializedContext },
+            ...resolvedImages.flatMap((img): GeminiDiagnosisContentPart[] => [
+              {
+                text: `Evidência visual anexada (ID: ${img.evidenceId}${img.notes ? ` | Notas: ${img.notes}` : ''}):`,
+              },
+              {
+                inlineData: {
+                  mimeType: img.mimeType,
+                  data: img.base64Data,
+                },
+              },
+            ]),
+          ];
 
     let rawText: string | undefined;
 
@@ -142,7 +200,7 @@ export class GeminiDiagnosisAdapter implements IDiagnosisGenerator {
       const response = await Promise.race([
         aiClient.models.generateContent({
           model: this.model,
-          contents: serializedContext,
+          contents,
           config: {
             systemInstruction: DIAGNOSIS_SYSTEM_INSTRUCTION,
             responseMimeType: 'application/json',
@@ -214,7 +272,15 @@ export class GeminiDiagnosisAdapter implements IDiagnosisGenerator {
       );
     }
 
-    return validation.data;
+    const result = validation.data;
+    if (unavailableIds.length > 0) {
+      result.missing_information = [
+        ...result.missing_information,
+        `Não foi possível carregar no storage ${unavailableIds.length} evidência(s) de imagem (${unavailableIds.join(', ')}).`,
+      ];
+    }
+
+    return result;
   }
 
   private getOrCreateClient(apiKey: string): GeminiDiagnosisContentClient {

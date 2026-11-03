@@ -1,6 +1,7 @@
 import type { IOccurrenceRepository } from '../domain/repositories/IOccurrenceRepository.js';
 import type { IEvidenceRepository } from '../domain/repositories/IEvidenceRepository.js';
 import type { IDiagnosisRepository } from '../domain/repositories/IDiagnosisRepository.js';
+import type { IStorageService } from '../domain/services/IStorageService.js';
 import { InMemoryOccurrenceRepository } from '../infra/repositories/occurrenceRepository.js';
 import { diagnosisRepository as inMemoryDiagnosisRepository } from '../infra/repositories/diagnosisRepository.js';
 import { prismaDiagnosisRepository } from '../infra/repositories/prismaDiagnosisRepository.js';
@@ -34,6 +35,7 @@ export async function deleteEvidence(
   occurrenceRepo: IOccurrenceRepository,
   evidenceRepo: IEvidenceRepository,
   diagnosisRepo?: IDiagnosisRepository,
+  storageService?: IStorageService,
 ): Promise<void> {
   if (input.confirmed !== true) {
     throw new DeleteConfirmationRequiredError();
@@ -47,6 +49,10 @@ export async function deleteEvidence(
   const existing = await evidenceRepo.findById(input.evidenceId);
   if (!existing || existing.occurrenceId !== input.occurrenceId) {
     throw new EvidenceNotFoundError(input.evidenceId);
+  }
+
+  if (existing.type === 'IMAGE' && existing.url && storageService) {
+    await storageService.deleteFile(existing.url);
   }
 
   await evidenceRepo.delete(existing.id);
