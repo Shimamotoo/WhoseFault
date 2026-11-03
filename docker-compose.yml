@@ -48,6 +48,8 @@ services:
       - RUN_MIGRATIONS=true
     ports:
       - "${API_PORT:-3333}:3333"
+    volumes:
+      - ${APPDATA}/gcloud/application_default_credentials.json:/home/node/.config/gcloud/application_default_credentials.json:ro
     depends_on:
       postgres:
         condition: service_healthy
