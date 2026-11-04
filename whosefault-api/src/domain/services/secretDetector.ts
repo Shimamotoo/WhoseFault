@@ -41,9 +41,10 @@ const SECRET_PATTERNS: RegExp[] = [
   // Cabeçalhos ou strings Authorization Bearer/Basic com valor real (não mascarado)
   /\b(?:Bearer|Basic)\s+(?!\*+\b|\[?REDACTED\]?|\[?MASKED\]?|\[?OCULTO\]?)[A-Za-z0-9._~+/=-]{8,}/i,
   // Credenciais embutidas em URLs (ex: https://user:password@host)
-  /\b[a-z][a-z0-9+.-]*:\/\/[^/\s:@]+:(?!\*+@|\[REDACTED\]@)[^/\s@]+@[^/\s]+/i,
-  // Strings de conexão de banco/serviços com credenciais (postgres://, mongodb://, redis://, amqp://, mysql://)
-  /\b(?:postgres(?:ql)?|mongodb(?:\+srv)?|redis|rediss|mysql|amqp|amqps):\/\/[^\s]+/i,
+  /\b[a-z][a-z0-9+.-]*:\/\/[^/\s:@]+:(?!\*+@|\[?(?:REDACTED|MASKED|OCULTO)\]?@|<[^>]+>@)[^/\s@]+@[^/\s]+/i,
+  // Strings de conexão de banco/serviços COM credenciais (PA-08), ex.: postgres://user:pass@host ou redis://:pass@host.
+  // URIs sem credenciais (redis://localhost:6379, mongodb://mongo-internal:27017/app) e senhas mascaradas são permitidas.
+  /\b(?:postgres(?:ql)?|mongodb(?:\+srv)?|redis|rediss|mysql|amqp|amqps):\/\/[^/\s:@]*:(?!\*+@|\[?(?:REDACTED|MASKED|OCULTO)\]?@|<[^>]+>@)[^/\s@]+@[^\s]+/i,
   // Prefixos conhecidos de API Keys (OpenAI, GitHub, Stripe, AWS, Slack, Google, etc.)
   /\b(?:sk-(?:live|test|proj)?-?[A-Za-z0-9]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{35})\b/,
   // Parâmetros de query ou atribuições com nomes de segredos em URLs, JSON, env, logs

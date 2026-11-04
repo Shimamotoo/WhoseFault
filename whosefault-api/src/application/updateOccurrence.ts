@@ -14,7 +14,13 @@ export interface IUpdateOccurrenceInput {
   apiName?: string;
   url?: string;
   method?: HttpMethod;
-  description?: string;
+  /**
+   * PA-05:
+   * - `undefined` (campo omitido no PATCH): preserva a descrição existente.
+   * - `null` ou string vazia: limpa explicitamente a descrição.
+   * - string preenchida: substitui a descrição.
+   */
+  description?: string | null;
 }
 
 export interface IUpdateOccurrenceResult {
@@ -33,6 +39,23 @@ export class OccurrenceNotFoundError extends Error {
     super(`Ocorrência não encontrada: ${id}`);
     this.name = 'OccurrenceNotFoundError';
   }
+}
+
+/**
+ * Resolve a descrição final de um patch parcial (PA-05).
+ * `undefined` preserva o valor atual; `null`/vazio limpa; string preenchida substitui.
+ */
+function resolveDescription(
+  incoming: string | null | undefined,
+  current: string | undefined,
+): string | undefined {
+  if (incoming === undefined) {
+    return current;
+  }
+  if (incoming === null || incoming.trim() === '') {
+    return undefined;
+  }
+  return incoming;
 }
 
 /**
@@ -59,8 +82,7 @@ export async function updateOccurrence(
 
   const hadDescription =
     existing.description !== undefined && existing.description.trim() !== '';
-  const newDescription =
-    'description' in input ? input.description : existing.description;
+  const newDescription = resolveDescription(input.description, existing.description);
   const addingDescriptionFirstTime =
     !hadDescription &&
     newDescription !== undefined &&

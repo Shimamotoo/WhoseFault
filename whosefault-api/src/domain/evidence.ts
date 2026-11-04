@@ -123,6 +123,37 @@ export class Evidence {
     this.updatedAt = props.updatedAt;
   }
 
+  /**
+   * Reidrata uma evidência já persistida (PA-09).
+   *
+   * Diferente de `Evidence.create()`, NÃO reexecuta as validações de entrada de formulário nem o
+   * `secretDetector`: os dados já passaram por essas regras no momento da criação/edição, e reavaliá-los
+   * na leitura bloquearia a listagem/exclusão de registros legados caso as regras de detecção evoluam.
+   *
+   * O double-check de segurança antes do envio à IA continua ativo em `prepareEvidencesForAI` e
+   * `generateDiagnosisUseCase`. Use este método exclusivamente em repositórios (camada de infraestrutura).
+   */
+  static restore(
+    props: EvidenceProps & { id: string; createdAt: Date; updatedAt: Date },
+  ): Evidence {
+    return new Evidence({
+      id: props.id,
+      occurrenceId: props.occurrenceId,
+      type: props.type,
+      method: props.method,
+      url: props.url,
+      statusCode: props.statusCode,
+      headers: props.headers,
+      payload: props.payload,
+      body: props.body,
+      content: props.content,
+      context: props.context,
+      notes: props.notes,
+      createdAt: props.createdAt,
+      updatedAt: props.updatedAt,
+    });
+  }
+
   static create(
     props: EvidenceProps,
     secretDetector: ISecretDetector = defaultSecretDetector,

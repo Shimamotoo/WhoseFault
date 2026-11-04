@@ -9,6 +9,9 @@ import { StubDiagnosisGenerator } from '../../src/infra/ai/stubDiagnosisGenerato
 import { StubTitleGenerator } from '../../src/infra/ai/stubTitleGenerator.js';
 import { cleanupExpiredGuests } from '../../src/application/cleanupGuests.js';
 import { User } from '../../src/domain/user.js';
+import { Occurrence } from '../../src/domain/occurrence.js';
+import { Evidence } from '../../src/domain/evidence.js';
+import { StubStorageService } from '../../src/infra/storage/stubStorageService.js';
 
 describe('SPEC-06 — Gerenciar Identidade e Autenticação', () => {
   let userRepo: InMemoryUserRepository;
@@ -496,6 +499,127 @@ describe('SPEC-06 — Gerenciar Identidade e Autenticação', () => {
       const body = JSON.parse(res.body);
       expect(body.error).toBe('Falha ao buscar ocorrência.');
       expect(JSON.stringify(body)).not.toContain('PrismaClientKnownRequestError');
+    });
+  });
+
+  // ------------------------------------------------------------------ //
+  // PA-07: Expurgo das imagens no storage antes da cascata do banco
+  // ------------------------------------------------------------------ //
+  describe('PA-07: Remoção de imagens do storage no expurgo de visitantes', () => {
+    async function seedGuestWithImage(params: {
+      userId: string;
+      firebaseUid: string;
+      updatedAt: Date;
+      evidenceRepo: InMemoryEvidenceRepository;
+      storage: StubStorageService;
+    }): Promise<string> {
+      const guest = User.create({
+        id: params.userId,
+        firebaseUid: params.firebaseUid,
+        name: 'Visitante',
+        isAnonymous: true,
+        updatedAt: params.updatedAt,
+      });
+      // @ts-expect-error acessando store interna para teste
+      userRepo.users.set(guest.id, guest);
+
+      const occurrence = Occurrence.create({
+        userId: params.userId,
+        apiName: 'API Visitante',
+        url: 'https://api.exemplo.com/visitante',
+        method: 'GET',
+      });
+      await occurrenceRepo.save(occurrence);
+
+      const uploaded = await params.storage.uploadFile({
+        occurrenceId: occurrence.id,
+        filename: 'print.png',
+        mimeType: 'image/png',
+        buffer: Buffer.from('fake-png'),
+      });
+
+      await params.evidenceRepo.save(
+        Evidence.create({
+          occurrenceId: occurrence.id,
+          type: 'IMAGE',
+          url: uploaded.storagePath,
+          headers: { contentType: 'image/png', sizeBytes: '8' },
+        }),
+      );
+      await params.evidenceRepo.save(
+        Evidence.create({
+          occurrenceId: occurrence.id,
+          type: 'MANUAL_NOTE',
+          content: 'Nota textual sem arquivo físico',
+        }),
+      );
+
+      return uploaded.storagePath;
+    }
+
+    it('deve apagar do storage as imagens de visitantes expirados e preservar as de visitantes ativos', async () => {
+      const evidenceRepo = new InMemoryEvidenceRepository();
+      const storage = new StubStorageService();
+
+      const expiredPath = await seedGuestWithImage({
+        userId: 'expired-guest',
+        firebaseUid: 'firebase-expired-guest',
+        updatedAt: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000),
+        evidenceRepo,
+        storage,
+      });
+      const activePath = await seedGuestWithImage({
+        userId: 'active-guest',
+        firebaseUid: 'firebase-active-guest',
+        updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+        evidenceRepo,
+        storage,
+      });
+
+      const result = await cleanupExpiredGuests(userRepo, {
+        daysInactive: 30,
+        deleteFromFirebase: false,
+        occurrenceRepo,
+        evidenceRepo,
+        storageService: storage,
+      });
+
+      expect(result.deletedCount).toBe(1);
+      expect(result.storageDeletedCount).toBe(1);
+      expect(result.storageErrors).toEqual([]);
+      expect(storage.hasFile(expiredPath)).toBe(false);
+      expect(storage.hasFile(activePath)).toBe(true);
+      expect(await userRepo.findById('expired-guest')).toBeNull();
+      expect(await userRepo.findById('active-guest')).not.toBeNull();
+    });
+
+    it('deve continuar o expurgo do banco e reportar storageErrors quando a remoção de um arquivo falhar', async () => {
+      const evidenceRepo = new InMemoryEvidenceRepository();
+      const storage = new StubStorageService();
+
+      await seedGuestWithImage({
+        userId: 'expired-guest-fail',
+        firebaseUid: 'firebase-expired-guest-fail',
+        updatedAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000),
+        evidenceRepo,
+        storage,
+      });
+
+      vi.spyOn(storage, 'deleteFile').mockRejectedValueOnce(new Error('GCS indisponível'));
+
+      const result = await cleanupExpiredGuests(userRepo, {
+        daysInactive: 30,
+        deleteFromFirebase: false,
+        occurrenceRepo,
+        evidenceRepo,
+        storageService: storage,
+      });
+
+      expect(result.deletedCount).toBe(1);
+      expect(result.storageDeletedCount).toBe(0);
+      expect(result.storageErrors).toHaveLength(1);
+      expect(result.storageErrors[0]).toContain('GCS indisponível');
+      expect(await userRepo.findById('expired-guest-fail')).toBeNull();
     });
   });
 });

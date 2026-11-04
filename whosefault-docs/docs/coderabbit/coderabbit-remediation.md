@@ -44,27 +44,27 @@ Documento de rastreamento das correções, refatorações e melhorias de seguran
 
 ### Onda 2 — Integridade de Dados, Domínio e Expurgo (`whosefault-api`)
 
-- [ ] **PA-05** `[major]` — **Preservar `description` em atualizações parciais (`PATCH`)**
+- [x] **PA-05** `[major]` — **Preservar `description` em atualizações parciais (`PATCH`)**
   - **Problema:** Omitir `description` no JSON gravava `null` no banco e apagava a descrição existente.
   - **Ação:** Atualizar `updateOccurrence` para preservar o valor atual quando `input.description === undefined`.
   - **Arquivos:** `whosefault-api/src/application/updateOccurrence.ts`.
 
-- [ ] **PA-06** `[major]` — **Inicialização explícita do Firebase Admin no expurgo de visitantes**
+- [x] **PA-06** `[major]` — **Inicialização explícita do Firebase Admin no expurgo de visitantes**
   - **Problema:** O script de cleanup dependia de construtor vazio, resultando em `getApps().length === 0` e nunca excluindo UIDs do Firebase Auth.
   - **Ação:** Extrair e invocar `ensureFirebaseAdminInitialized()` no script de limpeza.
   - **Arquivos:** `whosefault-api/src/infra/auth/firebaseTokenVerifier.ts`, `whosefault-api/src/infra/scripts/cleanupGuests.ts`.
 
-- [ ] **PA-07** `[major]` — **Expurgo de imagens do GCS associadas a visitantes expirados**
+- [x] **PA-07** `[major]` — **Expurgo de imagens do GCS associadas a visitantes expirados**
   - **Problema:** `deleteMany` de usuários anônimos remove registros no PostgreSQL via cascade mas deixa objetos órfãos no Cloud Storage.
   - **Ação:** Buscar evidências `IMAGE` dos visitantes expirados e deletá-las via `IStorageService.deleteFile` antes da exclusão no banco.
   - **Arquivos:** `whosefault-api/src/application/cleanupGuests.ts`, `whosefault-api/src/infra/scripts/cleanupGuests.ts`.
 
-- [ ] **PA-08** `[minor]` — **Permitir URIs de conexão sem credenciais no detector de segredos**
+- [x] **PA-08** `[minor]` — **Permitir URIs de conexão sem credenciais no detector de segredos**
   - **Problema:** URIs como `redis://localhost:6379` eram bloqueadas sem possuir credenciais embutidas.
   - **Ação:** Exigir `user:password@` (ou `:password@`) na regex de strings de conexão de bancos/serviços.
   - **Arquivos:** `whosefault-api/src/domain/services/secretDetector.ts`.
 
-- [ ] **PA-09** `[minor]` — **Separar reidratação (`Evidence.restore`) da validação de criação**
+- [x] **PA-09** `[minor]` — **Separar reidratação (`Evidence.restore`) da validação de criação**
   - **Problema:** `mapRecordToDomain` no repositório executava validação de segredos ao ler dados já persistidos, quebrando leituras com regras novas.
   - **Ação:** Implementar método de fábrica `Evidence.restore` sem validação de entrada de usuário para reidratação relacional.
   - **Arquivos:** `whosefault-api/src/domain/evidence.ts`, `whosefault-api/src/infra/repositories/prismaEvidenceRepository.ts`.

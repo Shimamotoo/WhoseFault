@@ -301,4 +301,52 @@ describe('SPEC-03: Entidade Evidence (Domínio)', () => {
       `Payload excede o limite máximo de ${EVIDENCE_LIMITS.MAX_PAYLOAD_LOG_LENGTH} caracteres.`,
     );
   });
+
+  describe('PA-09: Evidence.restore (reidratação a partir do repositório)', () => {
+    const legacyRecord = {
+      id: 'ev-legacy-1',
+      occurrenceId,
+      type: 'HTTP_REQUEST' as EvidenceType,
+      method: 'POST' as HttpMethod,
+      url: 'https://api.exemplo.com/v1/login',
+      headers: { 'Content-Type': 'application/json' },
+      // Conteúdo que as regras atuais do detector bloqueariam (ex.: registro anterior à evolução das regras)
+      payload: '{"username":"dev","password":"SenhaLegadaAntiga2024"}',
+      createdAt: new Date('2025-01-01T10:00:00Z'),
+      updatedAt: new Date('2025-01-02T10:00:00Z'),
+    };
+
+    it('deve reidratar registros legados sem lançar SensitiveDataDetectedError', () => {
+      // Sanidade: a criação com o mesmo conteúdo continua bloqueada
+      expect(() => Evidence.create(legacyRecord)).toThrow(SensitiveDataDetectedError);
+
+      // Act
+      const restored = Evidence.restore(legacyRecord);
+
+      // Assert
+      expect(restored.id).toBe('ev-legacy-1');
+      expect(restored.occurrenceId).toBe(occurrenceId);
+      expect(restored.type).toBe('HTTP_REQUEST');
+      expect(restored.method).toBe('POST');
+      expect(restored.payload).toBe(legacyRecord.payload);
+      expect(restored.headers).toEqual({ 'Content-Type': 'application/json' });
+      expect(restored.createdAt).toEqual(legacyRecord.createdAt);
+      expect(restored.updatedAt).toEqual(legacyRecord.updatedAt);
+    });
+
+    it('deve preservar id e datas persistidos sem gerar novos valores', () => {
+      const restored = Evidence.restore({
+        id: 'ev-legacy-2',
+        occurrenceId,
+        type: 'MANUAL_NOTE',
+        content: 'Nota persistida',
+        createdAt: new Date('2024-06-01T00:00:00Z'),
+        updatedAt: new Date('2024-06-01T00:00:00Z'),
+      });
+
+      expect(restored.id).toBe('ev-legacy-2');
+      expect(restored.content).toBe('Nota persistida');
+      expect(restored.createdAt.toISOString()).toBe('2024-06-01T00:00:00.000Z');
+    });
+  });
 });
