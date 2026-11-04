@@ -163,8 +163,17 @@ export const OccurrencesListPage: React.FC = () => {
               <Card
                 key={occ.id}
                 data-testid={`occurrence-card-${occ.id}`}
+                role="link"
+                tabIndex={0}
+                aria-label={`${occ.apiName}: ${occ.title} (${occ.method} ${occ.url})`}
                 onClick={() => navigate(`/occurrences/${occ.id}`)}
-                className="group cursor-pointer border-zinc-800/90 bg-zinc-900/40 hover:bg-zinc-900/80 hover:border-zinc-700/90 transition-all duration-150"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    navigate(`/occurrences/${occ.id}`);
+                  }
+                }}
+                className="group cursor-pointer border-zinc-800/90 bg-zinc-900/40 hover:bg-zinc-900/80 hover:border-zinc-700/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 transition-all duration-150"
               >
                 <CardContent className="p-4 sm:p-5 space-y-3">
                   {/* Linha 1: API Name + Metadados de Evidências/Diagnóstico + Data de Criação */}
