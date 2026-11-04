@@ -622,4 +622,148 @@ describe('SPEC-06 — Gerenciar Identidade e Autenticação', () => {
       expect(await userRepo.findById('expired-guest-fail')).toBeNull();
     });
   });
+
+  // ------------------------------------------------------------------ //
+  // PA-15: Mesclagem de contas (POST /api/auth/merge-guest)
+  // ------------------------------------------------------------------ //
+  describe('PA-15: Mesclagem de contas de visitante com conta Google permanente', () => {
+    it('deve transferir ocorrências de um visitante anônimo para a conta Google permanente e excluir o visitante', async () => {
+      // 1. Cria usuário visitante no banco com ocorrências
+      const guestUser = await userRepo.upsert({
+        firebaseUid: 'guest-firebase-uid',
+        name: 'Visitante Inicial',
+        isAnonymous: true,
+      });
+
+      const occ1 = Occurrence.create({
+        userId: guestUser.id,
+        apiName: 'API Visitante 1',
+        url: 'https://api.exemplo.com/v1',
+        method: 'GET',
+      });
+      const occ2 = Occurrence.create({
+        userId: guestUser.id,
+        apiName: 'API Visitante 2',
+        url: 'https://api.exemplo.com/v2',
+        method: 'POST',
+      });
+      await occurrenceRepo.save(occ1);
+      await occurrenceRepo.save(occ2);
+
+      // 2. Configura tokenVerifier com token da conta permanente Google e token do visitante
+      tokenVerifier.registerToken('google-target-token', {
+        uid: 'google-target-uid',
+        email: 'dev.google@empresa.com',
+        name: 'Dev Google',
+        isAnonymous: false,
+      });
+      tokenVerifier.registerToken('guest-origin-token', {
+        uid: 'guest-firebase-uid',
+        email: null,
+        name: 'Visitante Inicial',
+        isAnonymous: true,
+      });
+
+      // 3. Executa POST /api/auth/merge-guest
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/auth/merge-guest',
+        headers: {
+          authorization: 'Bearer google-target-token',
+        },
+        payload: {
+          guestToken: 'guest-origin-token',
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.success).toBe(true);
+      expect(body.transferredCount).toBe(2);
+
+      // 4. Verifica se as ocorrências agora pertencem ao usuário Google
+      const targetUser = await userRepo.findByFirebaseUid('google-target-uid');
+      expect(targetUser).not.toBeNull();
+      const googleOccurrences = await occurrenceRepo.findAll(targetUser!.id);
+      expect(googleOccurrences).toHaveLength(2);
+      expect(googleOccurrences.map((o) => o.apiName)).toContain('API Visitante 1');
+      expect(googleOccurrences.map((o) => o.apiName)).toContain('API Visitante 2');
+
+      // 5. Verifica se o usuário visitante foi expurgado do banco
+      const guestAfterMerge = await userRepo.findById(guestUser.id);
+      expect(guestAfterMerge).toBeNull();
+    });
+
+    it('deve retornar 400 se a conta chamadora for visitante', async () => {
+      tokenVerifier.registerToken('caller-is-guest-token', {
+        uid: 'caller-guest-uid',
+        isAnonymous: true,
+      });
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/auth/merge-guest',
+        headers: { authorization: 'Bearer caller-is-guest-token' },
+        payload: { guestToken: 'some-token' },
+      });
+
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.body);
+      expect(body.error).toContain('A conta de destino não pode ser');
+    });
+
+    it('deve retornar 400 se guestToken for ausente ou inválido', async () => {
+      tokenVerifier.registerToken('google-token-valid', {
+        uid: 'google-uid-valid',
+        isAnonymous: false,
+      });
+
+      const resMissing = await app.inject({
+        method: 'POST',
+        url: '/api/auth/merge-guest',
+        headers: { authorization: 'Bearer google-token-valid' },
+        payload: {},
+      });
+      expect(resMissing.statusCode).toBe(400);
+
+      const resInvalidToken = await app.inject({
+        method: 'POST',
+        url: '/api/auth/merge-guest',
+        headers: { authorization: 'Bearer google-token-valid' },
+        payload: { guestToken: 'invalid-token' },
+      });
+      expect(resInvalidToken.statusCode).toBe(400);
+      expect(JSON.parse(resInvalidToken.body).error).toContain('Token de visitante');
+    });
+
+    it('deve retornar 400 se o token de visitante corresponder a uma conta que não é anônima', async () => {
+      tokenVerifier.registerToken('google-target', {
+        uid: 'google-target-uid',
+        isAnonymous: false,
+      });
+      tokenVerifier.registerToken('non-anon-origin', {
+        uid: 'another-google-uid',
+        isAnonymous: false,
+      });
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/auth/merge-guest',
+        headers: { authorization: 'Bearer google-target' },
+        payload: { guestToken: 'non-anon-origin' },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.body).error).toContain('deve ser anônima');
+    });
+
+    it('deve retornar 401 se a requisição não estiver autenticada', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/auth/merge-guest',
+        payload: { guestToken: 'anonymous-token' },
+      });
+      expect(response.statusCode).toBe(401);
+    });
+  });
 });

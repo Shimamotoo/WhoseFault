@@ -4,11 +4,13 @@ import {
   onAuthStateChanged,
   signInAnonymously,
   signInWithPopup,
+  signInWithCredential,
   linkWithPopup,
+  GoogleAuthProvider,
   signOut as firebaseSignOut,
 } from "firebase/auth";
 import { auth, googleProvider } from "@/services/firebase";
-import { syncUserProfile } from "@/services/api";
+import { mergeGuestSession, syncUserProfile } from "@/services/api";
 import type { UserProfile } from "@/types/domain";
 
 export interface AuthContextType {
@@ -36,10 +38,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const clearError = () => setError(null);
 
-  // Escuta alterações de estado de autenticação do Firebase
+  // Escuta alterações de estado de autenticação do Firebase (PA-13: aguarda perfil antes de publicar user)
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
       if (currentUser) {
         try {
           const synced = await syncUserProfile();
@@ -47,7 +48,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         } catch (err) {
           console.warn("Não foi possível sincronizar o perfil no momento:", err);
         }
+        setUser(currentUser);
       } else {
+        setUser(null);
         setProfile(null);
       }
       setLoading(false);
@@ -64,17 +67,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         // Se já está logado como visitante, tenta vincular a conta para não perder os dados
         try {
           const result = await linkWithPopup(auth.currentUser, googleProvider);
+          // linkWithPopup muta o usuário existente mantendo o mesmo UID (agora permanente)
           setUser(result.user);
           const synced = await syncUserProfile();
           setProfile(synced);
         } catch (linkErr: unknown) {
           const fbErr = linkErr as { code?: string; message?: string };
           if (fbErr.code === "auth/credential-already-in-use") {
-            // A conta Google já existe separadamente. Faz o login direto na conta existente.
-            const directResult = await signInWithPopup(auth, googleProvider);
-            setUser(directResult.user);
-            const synced = await syncUserProfile();
-            setProfile(synced);
+            // A conta Google já existe separadamente.
+            // PA-14 & PA-15:
+            // 1. Captura o token da conta visitante atual antes de trocar de credencial
+            let guestToken: string | null = null;
+            try {
+              guestToken = (await auth.currentUser?.getIdToken()) ?? null;
+            } catch (tokenErr) {
+              console.warn("Não foi possível obter o token da conta de visitante:", tokenErr);
+            }
+
+            // 2. PA-14: Obtém a credencial do erro para evitar abrir um 2º popup (que seria bloqueado por perda de user gesture)
+            const credential = GoogleAuthProvider.credentialFromError(
+              linkErr as Parameters<typeof GoogleAuthProvider.credentialFromError>[0],
+            );
+            if (!credential) {
+              throw linkErr;
+            }
+
+            // 3. Autentica com a credencial existente
+            await signInWithCredential(auth, credential);
+
+            // 4. PA-15: Se tínhamos o token do visitante, migra as ocorrências para a conta permanente
+            if (guestToken) {
+              try {
+                await mergeGuestSession(guestToken);
+                window.dispatchEvent(new CustomEvent("occurrences:reload"));
+              } catch (mergeErr) {
+                console.error("Erro ao migrar ocorrências do visitante:", mergeErr);
+              }
+            }
           } else if (
             fbErr.code === "auth/popup-closed-by-user" ||
             fbErr.code === "auth/cancelled-popup-request"
@@ -86,11 +115,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           }
         }
       } else {
-        // Login direto com o Google
-        const result = await signInWithPopup(auth, googleProvider);
-        setUser(result.user);
-        const synced = await syncUserProfile();
-        setProfile(synced);
+        // Login direto com o Google (PA-13: onAuthStateChanged cuidará da sincronização e do setUser)
+        await signInWithPopup(auth, googleProvider);
       }
     } catch (err: unknown) {
       const fbErr = err as { code?: string; message?: string };
@@ -111,10 +137,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setActionLoading(true);
     setError(null);
     try {
-      const result = await signInAnonymously(auth);
-      setUser(result.user);
-      const synced = await syncUserProfile();
-      setProfile(synced);
+      // PA-13: onAuthStateChanged cuidará da sincronização e do setUser
+      await signInAnonymously(auth);
     } catch (err) {
       setError("Falha ao iniciar o Modo Visitante. Tente novamente.");
       console.error(err);

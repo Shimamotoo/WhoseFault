@@ -127,6 +127,7 @@ export function createServer(deps: ServerDependencies = {}) {
     prefix: '/api',
     userRepository,
     tokenVerifier,
+    occurrenceRepository,
   });
 
   // Registra rotas sob o prefixo /api, passando as dependências como opção

@@ -15,4 +15,7 @@ export interface IOccurrenceRepository {
 
   /** Remove uma ocorrência pelo seu identificador. */
   delete(id: string): Promise<void>;
+
+  /** Transfere a propriedade de todas as ocorrências de um usuário para outro. */
+  transferOwnership(fromUserId: string, toUserId: string): Promise<number>;
 }
