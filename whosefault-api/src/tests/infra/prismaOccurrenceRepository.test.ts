@@ -55,13 +55,16 @@ describe('Integração: PrismaOccurrenceRepository (PostgreSQL)', () => {
 
   it('deve listar todas as ocorrências ordenadas da mais recente para a mais antiga', async () => {
     // Arrange
+    const testUserId = 'user-integration-test';
     const first = Occurrence.create({
+      userId: testUserId,
       apiName: 'API 1',
       url: 'https://api1.com/test',
       method: 'GET' as HttpMethod,
       createdAt: new Date('2026-01-01T10:00:00Z'),
     });
     const second = Occurrence.create({
+      userId: testUserId,
       apiName: 'API 2',
       url: 'https://api2.com/test',
       method: 'POST' as HttpMethod,
@@ -72,9 +75,11 @@ describe('Integração: PrismaOccurrenceRepository (PostgreSQL)', () => {
     await repo.save(second);
 
     // Act
-    const list = await repo.findAll();
+    const list = await repo.findAll(testUserId);
+    const unauthenticatedList = await repo.findAll();
 
     // Assert
+    expect(unauthenticatedList).toEqual([]);
     expect(list).toHaveLength(2);
     expect(list[0]?.id).toBe(second.id);
     expect(list[1]?.id).toBe(first.id);
