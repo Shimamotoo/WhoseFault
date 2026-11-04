@@ -58,6 +58,7 @@ describe('SPEC-07 — Processamento Assíncrono de Títulos com Mensageria', () 
       occurrenceRepository: occurrenceRepo,
       titleQueue: stubQueue,
       titleGenerator: fakeTitleGenerator,
+      requireAuth: false,
     });
     await app.ready();
   });

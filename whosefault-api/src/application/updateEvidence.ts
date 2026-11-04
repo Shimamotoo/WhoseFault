@@ -9,6 +9,7 @@ import { InMemoryOccurrenceRepository } from '../infra/repositories/occurrenceRe
 import { diagnosisRepository as inMemoryDiagnosisRepository } from '../infra/repositories/diagnosisRepository.js';
 import { prismaDiagnosisRepository } from '../infra/repositories/prismaDiagnosisRepository.js';
 import { OccurrenceNotFoundError } from './updateOccurrence.js';
+import { assertOccurrenceOwnership } from './occurrenceOwnership.js';
 import { mapEvidenceToResult, type IEvidenceResult } from './createEvidence.js';
 
 export class EvidenceNotFoundError extends Error {
@@ -21,6 +22,7 @@ export class EvidenceNotFoundError extends Error {
 export interface IUpdateEvidenceInput {
   occurrenceId: string;
   evidenceId: string;
+  userId?: string;
   method?: HttpMethod;
   url?: string;
   statusCode?: number;
@@ -49,6 +51,8 @@ export async function updateEvidence(
   if (!occurrence) {
     throw new OccurrenceNotFoundError(input.occurrenceId);
   }
+
+  assertOccurrenceOwnership(occurrence, input.userId);
 
   const existing = await evidenceRepo.findById(input.evidenceId);
   if (!existing || existing.occurrenceId !== input.occurrenceId) {

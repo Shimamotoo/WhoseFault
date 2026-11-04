@@ -57,6 +57,7 @@ describe('SPEC-04: Endpoints HTTP de Diagnóstico (/api/occurrences/:id/diagnosi
       evidenceRepository,
       diagnosisRepository,
       diagnosisGenerator: generator,
+      requireAuth: false,
     });
 
   it('CA-01 e RF-08: deve gerar o diagnóstico via POST /api/occurrences/:id/diagnosis e consultá-lo via GET /api/occurrences/:id/diagnosis', async () => {

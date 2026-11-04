@@ -1,3 +1,4 @@
+import { DomainValidationError } from './errors.js';
 import { HTTP_METHODS, type HttpMethod } from './occurrence.js';
 import { defaultSecretDetector } from './services/secretDetector.js';
 import type { ISecretDetector } from './services/ISecretDetector.js';
@@ -50,23 +51,23 @@ export interface EvidenceProps {
 
 function validateHeaders(headers: unknown): Record<string, string> {
   if (typeof headers !== 'object' || headers === null || Array.isArray(headers)) {
-    throw new Error('Cabeçalhos devem ser informados como um objeto chave-valor (Record<string, string>).');
+    throw new DomainValidationError('Cabeçalhos devem ser informados como um objeto chave-valor (Record<string, string>).');
   }
 
   const normalized: Record<string, string> = {};
   for (const [key, value] of Object.entries(headers)) {
     if (typeof key !== 'string' || key.trim() === '') {
-      throw new Error('As chaves dos cabeçalhos devem ser textos não vazios.');
+      throw new DomainValidationError('As chaves dos cabeçalhos devem ser textos não vazios.');
     }
     if (typeof value !== 'string') {
-      throw new Error(`O valor do cabeçalho "${key}" deve ser uma string.`);
+      throw new DomainValidationError(`O valor do cabeçalho "${key}" deve ser uma string.`);
     }
     normalized[key] = value;
   }
 
   const serializedLength = JSON.stringify(normalized).length;
   if (serializedLength > EVIDENCE_LIMITS.MAX_HEADERS_LENGTH) {
-    throw new Error(
+    throw new DomainValidationError(
       `Os cabeçalhos excedem o limite máximo de ${EVIDENCE_LIMITS.MAX_HEADERS_LENGTH} caracteres.`,
     );
   }
@@ -127,11 +128,11 @@ export class Evidence {
     secretDetector: ISecretDetector = defaultSecretDetector,
   ): Evidence {
     if (!props.occurrenceId || props.occurrenceId.trim() === '') {
-      throw new Error('Identificador da ocorrência é obrigatório.');
+      throw new DomainValidationError('Identificador da ocorrência é obrigatório.');
     }
 
     if (!props.type || !EVIDENCE_TYPES.includes(props.type)) {
-      throw new Error(`Tipo de evidência inválido: ${String(props.type)}.`);
+      throw new DomainValidationError(`Tipo de evidência inválido: ${String(props.type)}.`);
     }
 
     let validatedHeaders: Record<string, string> | undefined;
@@ -141,17 +142,17 @@ export class Evidence {
 
     if (props.type === 'HTTP_REQUEST') {
       if (!props.method) {
-        throw new Error('Método HTTP é obrigatório para evidência de requisição HTTP.');
+        throw new DomainValidationError('Método HTTP é obrigatório para evidência de requisição HTTP.');
       }
       if (!HTTP_METHODS.includes(props.method)) {
-        throw new Error(`Método HTTP inválido: ${props.method}.`);
+        throw new DomainValidationError(`Método HTTP inválido: ${props.method}.`);
       }
       if (!props.url || props.url.trim() === '') {
-        throw new Error('URL é obrigatória para evidência de requisição HTTP.');
+        throw new DomainValidationError('URL é obrigatória para evidência de requisição HTTP.');
       }
       const trimmedUrl = props.url.trim();
       if (trimmedUrl.length > EVIDENCE_LIMITS.MAX_URL_LENGTH) {
-        throw new Error(
+        throw new DomainValidationError(
           `URL excede o limite máximo de ${EVIDENCE_LIMITS.MAX_URL_LENGTH} caracteres.`,
         );
       }
@@ -160,30 +161,30 @@ export class Evidence {
       try {
         parsedUrl = new URL(trimmedUrl);
       } catch {
-        throw new Error('URL inválida.');
+        throw new DomainValidationError('URL inválida.');
       }
 
       if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
-        throw new Error('URL deve utilizar o protocolo HTTP ou HTTPS.');
+        throw new DomainValidationError('URL deve utilizar o protocolo HTTP ou HTTPS.');
       }
 
       if (
         props.payload !== undefined &&
         props.payload.length > EVIDENCE_LIMITS.MAX_PAYLOAD_LOG_LENGTH
       ) {
-        throw new Error(
+        throw new DomainValidationError(
           `Payload excede o limite máximo de ${EVIDENCE_LIMITS.MAX_PAYLOAD_LOG_LENGTH} caracteres.`,
         );
       }
 
       if (props.notes !== undefined && props.notes.length > EVIDENCE_LIMITS.MAX_NOTE_LENGTH) {
-        throw new Error(
+        throw new DomainValidationError(
           `Observações excedem o limite máximo de ${EVIDENCE_LIMITS.MAX_NOTE_LENGTH} caracteres.`,
         );
       }
     } else if (props.type === 'HTTP_RESPONSE') {
       if (props.statusCode === undefined || props.statusCode === null) {
-        throw new Error('Status HTTP é obrigatório para evidência de resposta HTTP.');
+        throw new DomainValidationError('Status HTTP é obrigatório para evidência de resposta HTTP.');
       }
       if (
         typeof props.statusCode !== 'number' ||
@@ -191,7 +192,7 @@ export class Evidence {
         props.statusCode < EVIDENCE_LIMITS.MIN_HTTP_STATUS ||
         props.statusCode > EVIDENCE_LIMITS.MAX_HTTP_STATUS
       ) {
-        throw new Error(
+        throw new DomainValidationError(
           `Status HTTP inválido: deve ser um número inteiro entre ${EVIDENCE_LIMITS.MIN_HTTP_STATUS} e ${EVIDENCE_LIMITS.MAX_HTTP_STATUS}.`,
         );
       }
@@ -200,56 +201,56 @@ export class Evidence {
         props.body !== undefined &&
         props.body.length > EVIDENCE_LIMITS.MAX_PAYLOAD_LOG_LENGTH
       ) {
-        throw new Error(
+        throw new DomainValidationError(
           `Corpo da resposta excede o limite máximo de ${EVIDENCE_LIMITS.MAX_PAYLOAD_LOG_LENGTH} caracteres.`,
         );
       }
 
       if (props.notes !== undefined && props.notes.length > EVIDENCE_LIMITS.MAX_NOTE_LENGTH) {
-        throw new Error(
+        throw new DomainValidationError(
           `Observações excedem o limite máximo de ${EVIDENCE_LIMITS.MAX_NOTE_LENGTH} caracteres.`,
         );
       }
     } else if (props.type === 'ERROR_LOG') {
       if (!props.content || props.content.trim() === '') {
-        throw new Error('Conteúdo textual é obrigatório para evidência de log ou mensagem de erro.');
+        throw new DomainValidationError('Conteúdo textual é obrigatório para evidência de log ou mensagem de erro.');
       }
       if (props.content.length > EVIDENCE_LIMITS.MAX_PAYLOAD_LOG_LENGTH) {
-        throw new Error(
+        throw new DomainValidationError(
           `Conteúdo do log excede o limite máximo de ${EVIDENCE_LIMITS.MAX_PAYLOAD_LOG_LENGTH} caracteres.`,
         );
       }
       if (props.context !== undefined && props.context.length > EVIDENCE_LIMITS.MAX_NOTE_LENGTH) {
-        throw new Error(
+        throw new DomainValidationError(
           `Contexto adicional excede o limite máximo de ${EVIDENCE_LIMITS.MAX_NOTE_LENGTH} caracteres.`,
         );
       }
     } else if (props.type === 'MANUAL_NOTE') {
       if (!props.content || props.content.trim() === '') {
-        throw new Error('Conteúdo textual é obrigatório para evidência de observação manual.');
+        throw new DomainValidationError('Conteúdo textual é obrigatório para evidência de observação manual.');
       }
       if (props.content.length > EVIDENCE_LIMITS.MAX_NOTE_LENGTH) {
-        throw new Error(
+        throw new DomainValidationError(
           `Observação manual excede o limite máximo de ${EVIDENCE_LIMITS.MAX_NOTE_LENGTH} caracteres.`,
         );
       }
     } else if (props.type === 'IMAGE') {
       if (!props.url || props.url.trim() === '') {
-        throw new Error('Caminho de armazenamento (storagePath) é obrigatório para evidência de imagem.');
+        throw new DomainValidationError('Caminho de armazenamento (storagePath) é obrigatório para evidência de imagem.');
       }
       const trimmedStoragePath = props.url.trim();
       if (trimmedStoragePath.length > EVIDENCE_LIMITS.MAX_URL_LENGTH) {
-        throw new Error(
+        throw new DomainValidationError(
           `Caminho da imagem excede o limite máximo de ${EVIDENCE_LIMITS.MAX_URL_LENGTH} caracteres.`,
         );
       }
       if (trimmedStoragePath.includes('..')) {
-        throw new Error('Caminho de armazenamento inválido para evidência de imagem.');
+        throw new DomainValidationError('Caminho de armazenamento inválido para evidência de imagem.');
       }
       if (validatedHeaders?.contentType !== undefined) {
         const mime = validatedHeaders.contentType.toLowerCase();
         if (!(ALLOWED_IMAGE_MIME_TYPES as readonly string[]).includes(mime)) {
-          throw new Error(
+          throw new DomainValidationError(
             'Formato de imagem inválido. Apenas JPEG, PNG e WEBP são permitidos.',
           );
         }
@@ -257,13 +258,13 @@ export class Evidence {
       if (validatedHeaders?.sizeBytes !== undefined) {
         const size = Number(validatedHeaders.sizeBytes);
         if (!Number.isFinite(size) || size <= 0 || size > EVIDENCE_LIMITS.MAX_IMAGE_SIZE_BYTES) {
-          throw new Error(
+          throw new DomainValidationError(
             'O arquivo excede o tamanho máximo permitido de 5MB por imagem.',
           );
         }
       }
       if (props.notes !== undefined && props.notes.length > EVIDENCE_LIMITS.MAX_NOTE_LENGTH) {
-        throw new Error(
+        throw new DomainValidationError(
           `Observações excedem o limite máximo de ${EVIDENCE_LIMITS.MAX_NOTE_LENGTH} caracteres.`,
         );
       }

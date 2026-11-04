@@ -17,6 +17,7 @@ let app: FastifyInstance;
 beforeAll(async () => {
   app = createServer({
     occurrenceRepository,
+    requireAuth: false,
   });
   await app.ready();
 });

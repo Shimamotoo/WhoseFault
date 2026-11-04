@@ -16,6 +16,11 @@ import {
   DeleteConfirmationRequiredError,
 } from '../../application/deleteEvidence.js';
 import { OccurrenceNotFoundError } from '../../application/updateOccurrence.js';
+import {
+  assertOccurrenceOwnership,
+  UnauthorizedOccurrenceAccessError,
+} from '../../application/occurrenceOwnership.js';
+import { DomainValidationError } from '../../domain/errors.js';
 import type { IOccurrenceRepository } from '../../domain/repositories/IOccurrenceRepository.js';
 import type { IEvidenceRepository } from '../../domain/repositories/IEvidenceRepository.js';
 import type { IDiagnosisRepository } from '../../domain/repositories/IDiagnosisRepository.js';
@@ -55,13 +60,21 @@ const evidenceRoutes: FastifyPluginAsync<EvidenceRoutesOptions> = async (app, op
   app.get('/occurrences/:occurrenceId/evidences', { preHandler }, async (req, reply) => {
     const { occurrenceId } = req.params as { occurrenceId: string };
     try {
-      const evidences = await listEvidences(occurrenceId, occurrenceRepository, evidenceRepository);
+      const evidences = await listEvidences(
+        occurrenceId,
+        occurrenceRepository,
+        evidenceRepository,
+        req.user?.id,
+      );
       return reply.code(200).send({ evidences });
     } catch (err) {
+      if (err instanceof UnauthorizedOccurrenceAccessError) {
+        return reply.code(401).send({ error: err.message });
+      }
       if (err instanceof OccurrenceNotFoundError) {
         return reply.code(404).send({ error: err.message });
       }
-      req.log.error('Erro interno ao listar evidências.');
+      req.log.error({ errName: err instanceof Error ? err.name : 'UnknownError' }, 'Erro interno ao listar evidências.');
       return reply.code(500).send({ error: 'Falha ao consultar evidências.' });
     }
   });
@@ -96,7 +109,10 @@ const evidenceRoutes: FastifyPluginAsync<EvidenceRoutesOptions> = async (app, op
           .header('Cache-Control', 'private, max-age=86400')
           .send(result.buffer);
       } catch (err) {
-        if (err instanceof UnauthorizedEvidenceAccessError) {
+        if (
+          err instanceof UnauthorizedOccurrenceAccessError ||
+          err instanceof UnauthorizedEvidenceAccessError
+        ) {
           return reply.code(401).send({ error: err.message });
         }
         if (
@@ -112,7 +128,7 @@ const evidenceRoutes: FastifyPluginAsync<EvidenceRoutesOptions> = async (app, op
         if (err instanceof StorageProviderError) {
           return reply.code(502).send({ error: err.message });
         }
-        req.log.error('Erro interno ao carregar imagem da evidência.');
+        req.log.error({ errName: err instanceof Error ? err.name : 'UnknownError' }, 'Erro interno ao carregar imagem da evidência.');
         return reply.code(500).send({ error: 'Falha ao obter imagem da evidência.' });
       }
     },
@@ -182,6 +198,9 @@ const evidenceRoutes: FastifyPluginAsync<EvidenceRoutesOptions> = async (app, op
             error: 'O arquivo excede o limite máximo permitido de 5MB por imagem.',
           });
         }
+        if (err instanceof UnauthorizedOccurrenceAccessError) {
+          return reply.code(401).send({ error: err.message });
+        }
         if (err instanceof OccurrenceNotFoundError) {
           return reply.code(404).send({ error: err.message });
         }
@@ -193,16 +212,13 @@ const evidenceRoutes: FastifyPluginAsync<EvidenceRoutesOptions> = async (app, op
             fields: err.detectedFields,
           });
         }
-        if (err instanceof ImageValidationError) {
+        if (err instanceof ImageValidationError || err instanceof DomainValidationError) {
           return reply.code(400).send({ error: err.message });
         }
         if (err instanceof StorageProviderError) {
           return reply.code(502).send({ error: err.message });
         }
-        if (err instanceof Error) {
-          return reply.code(400).send({ error: err.message });
-        }
-        req.log.error('Erro interno ao processar upload de evidência.');
+        req.log.error({ errName: err instanceof Error ? err.name : 'UnknownError' }, 'Erro interno ao processar upload de evidência.');
         return reply.code(500).send({ error: 'Falha ao registrar evidência em foto.' });
       }
     }
@@ -224,6 +240,7 @@ const evidenceRoutes: FastifyPluginAsync<EvidenceRoutesOptions> = async (app, op
       const result = await createEvidence(
         {
           occurrenceId,
+          userId: req.user?.id,
           type: body.type,
           method: body.method,
           url: body.url,
@@ -243,6 +260,9 @@ const evidenceRoutes: FastifyPluginAsync<EvidenceRoutesOptions> = async (app, op
 
       return reply.code(201).send(result);
     } catch (err) {
+      if (err instanceof UnauthorizedOccurrenceAccessError) {
+        return reply.code(401).send({ error: err.message });
+      }
       if (err instanceof OccurrenceNotFoundError) {
         return reply.code(404).send({ error: err.message });
       }
@@ -254,10 +274,10 @@ const evidenceRoutes: FastifyPluginAsync<EvidenceRoutesOptions> = async (app, op
           fields: err.detectedFields,
         });
       }
-      if (err instanceof Error) {
+      if (err instanceof DomainValidationError) {
         return reply.code(400).send({ error: err.message });
       }
-      req.log.error('Erro interno ao registrar evidência.');
+      req.log.error({ errName: err instanceof Error ? err.name : 'UnknownError' }, 'Erro interno ao registrar evidência.');
       return reply.code(500).send({ error: 'Falha ao registrar evidência.' });
     }
   });
@@ -290,7 +310,16 @@ const evidenceRoutes: FastifyPluginAsync<EvidenceRoutesOptions> = async (app, op
           {
             occurrenceId,
             evidenceId,
-            ...body,
+            userId: req.user?.id,
+            method: body.method,
+            url: body.url,
+            statusCode: body.statusCode,
+            headers: body.headers,
+            payload: body.payload,
+            body: body.body,
+            content: body.content,
+            context: body.context,
+            notes: body.notes,
           },
           occurrenceRepository,
           evidenceRepository,
@@ -300,6 +329,9 @@ const evidenceRoutes: FastifyPluginAsync<EvidenceRoutesOptions> = async (app, op
 
         return reply.code(200).send(result);
       } catch (err) {
+        if (err instanceof UnauthorizedOccurrenceAccessError) {
+          return reply.code(401).send({ error: err.message });
+        }
         if (err instanceof OccurrenceNotFoundError || err instanceof EvidenceNotFoundError) {
           return reply.code(404).send({ error: err.message });
         }
@@ -310,10 +342,10 @@ const evidenceRoutes: FastifyPluginAsync<EvidenceRoutesOptions> = async (app, op
             fields: err.detectedFields,
           });
         }
-        if (err instanceof Error) {
+        if (err instanceof DomainValidationError) {
           return reply.code(400).send({ error: err.message });
         }
-        req.log.error('Erro interno ao editar evidência.');
+        req.log.error({ errName: err instanceof Error ? err.name : 'UnknownError' }, 'Erro interno ao editar evidência.');
         return reply.code(500).send({ error: 'Falha ao editar evidência.' });
       }
     },
@@ -339,6 +371,7 @@ const evidenceRoutes: FastifyPluginAsync<EvidenceRoutesOptions> = async (app, op
             occurrenceId,
             evidenceId,
             confirmed,
+            userId: req.user?.id,
           },
           occurrenceRepository,
           evidenceRepository,
@@ -348,6 +381,9 @@ const evidenceRoutes: FastifyPluginAsync<EvidenceRoutesOptions> = async (app, op
 
         return reply.code(200).send({ message: 'Evidência excluída definitivamente.' });
       } catch (err) {
+        if (err instanceof UnauthorizedOccurrenceAccessError) {
+          return reply.code(401).send({ error: err.message });
+        }
         if (err instanceof DeleteConfirmationRequiredError) {
           return reply.code(400).send({
             error: err.message,
@@ -360,10 +396,10 @@ const evidenceRoutes: FastifyPluginAsync<EvidenceRoutesOptions> = async (app, op
         if (err instanceof StorageProviderError) {
           return reply.code(502).send({ error: err.message });
         }
-        if (err instanceof Error) {
+        if (err instanceof DomainValidationError) {
           return reply.code(400).send({ error: err.message });
         }
-        req.log.error('Erro interno ao excluir evidência.');
+        req.log.error({ errName: err instanceof Error ? err.name : 'UnknownError' }, 'Erro interno ao excluir evidência.');
         return reply.code(500).send({ error: 'Falha ao excluir evidência.' });
       }
     },

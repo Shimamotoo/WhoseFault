@@ -1,4 +1,5 @@
 import { Occurrence } from '../domain/occurrence.js';
+import { assertOccurrenceOwnership } from './occurrenceOwnership.js';
 import type { IOccurrenceRepository } from '../domain/repositories/IOccurrenceRepository.js';
 import type { IDiagnosisRepository } from '../domain/repositories/IDiagnosisRepository.js';
 import type { ITitleQueue } from '../domain/services/ITitleQueue.js';
@@ -9,6 +10,7 @@ import { prismaDiagnosisRepository } from '../infra/repositories/prismaDiagnosis
 
 export interface IUpdateOccurrenceInput {
   id: string;
+  userId?: string;
   apiName?: string;
   url?: string;
   method?: HttpMethod;
@@ -52,6 +54,8 @@ export async function updateOccurrence(
   if (!existing) {
     throw new OccurrenceNotFoundError(input.id);
   }
+
+  assertOccurrenceOwnership(existing, input.userId);
 
   const hadDescription =
     existing.description !== undefined && existing.description.trim() !== '';

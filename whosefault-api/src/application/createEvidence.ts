@@ -9,9 +9,11 @@ import { InMemoryOccurrenceRepository } from '../infra/repositories/occurrenceRe
 import { diagnosisRepository as inMemoryDiagnosisRepository } from '../infra/repositories/diagnosisRepository.js';
 import { prismaDiagnosisRepository } from '../infra/repositories/prismaDiagnosisRepository.js';
 import { OccurrenceNotFoundError } from './updateOccurrence.js';
+import { assertOccurrenceOwnership } from './occurrenceOwnership.js';
 
 export interface ICreateEvidenceInput {
   occurrenceId: string;
+  userId?: string;
   type: EvidenceType;
   method?: HttpMethod;
   url?: string;
@@ -75,6 +77,8 @@ export async function createEvidence(
   if (!occurrence) {
     throw new OccurrenceNotFoundError(input.occurrenceId);
   }
+
+  assertOccurrenceOwnership(occurrence, input.userId);
 
   const evidence = Evidence.create(
     {

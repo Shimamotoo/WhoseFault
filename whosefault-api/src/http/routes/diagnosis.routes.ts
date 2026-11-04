@@ -5,6 +5,10 @@ import {
   mapDiagnosisToDTO,
 } from '../../application/useCases/generateDiagnosisUseCase.js';
 import { OccurrenceNotFoundError } from '../../application/updateOccurrence.js';
+import {
+  assertOccurrenceOwnership,
+  UnauthorizedOccurrenceAccessError,
+} from '../../application/occurrenceOwnership.js';
 import type { IOccurrenceRepository } from '../../domain/repositories/IOccurrenceRepository.js';
 import type { IEvidenceRepository } from '../../domain/repositories/IEvidenceRepository.js';
 import type { IDiagnosisRepository } from '../../domain/repositories/IDiagnosisRepository.js';
@@ -60,7 +64,7 @@ const diagnosisRoutes: FastifyPluginAsync<DiagnosisRoutesOptions> = async (app, 
     const { id } = req.params as { id: string };
 
     try {
-      const output = await generateDiagnosisUseCase.execute(id);
+      const output = await generateDiagnosisUseCase.execute(id, req.user?.id);
 
       if (output.discardedByConcurrency || !output.diagnosis) {
         return reply.code(409).send({
@@ -72,6 +76,9 @@ const diagnosisRoutes: FastifyPluginAsync<DiagnosisRoutesOptions> = async (app, 
 
       return reply.code(200).send(output.diagnosis);
     } catch (err) {
+      if (err instanceof UnauthorizedOccurrenceAccessError) {
+        return reply.code(401).send({ error: err.message });
+      }
       if (err instanceof OccurrenceNotFoundError) {
         return reply.code(404).send({ error: err.message });
       }
@@ -122,6 +129,8 @@ const diagnosisRoutes: FastifyPluginAsync<DiagnosisRoutesOptions> = async (app, 
         return reply.code(404).send({ error: `Ocorrência não encontrada: ${id}` });
       }
 
+      assertOccurrenceOwnership(occurrence, req.user?.id);
+
       const diagnosis = await diagnosisRepository.findByOccurrenceId(id);
       if (!diagnosis) {
         return reply.code(404).send({ error: 'Nenhum diagnóstico encontrado para esta ocorrência.' });
@@ -129,6 +138,12 @@ const diagnosisRoutes: FastifyPluginAsync<DiagnosisRoutesOptions> = async (app, 
 
       return reply.code(200).send(mapDiagnosisToDTO(diagnosis));
     } catch (err) {
+      if (err instanceof UnauthorizedOccurrenceAccessError) {
+        return reply.code(401).send({ error: err.message });
+      }
+      if (err instanceof OccurrenceNotFoundError) {
+        return reply.code(404).send({ error: err.message });
+      }
       req.log.error({ errName: err instanceof Error ? err.name : 'UnknownError' }, 'Erro ao consultar diagnóstico.');
       return reply.code(500).send({ error: 'Falha ao consultar diagnóstico.' });
     }

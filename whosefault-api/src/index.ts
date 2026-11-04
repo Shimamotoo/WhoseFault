@@ -25,6 +25,7 @@ const app = createServer({
   titleQueue,
   diagnosisGenerator: new GeminiDiagnosisAdapter({ storageService }),
   storageService,
+  requireAuth: true,
 });
 
 // Graceful shutdown coordenado entre Fastify, Worker e Fila (SPEC-07 §2)

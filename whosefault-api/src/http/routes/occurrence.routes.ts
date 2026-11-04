@@ -2,6 +2,11 @@ import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import { listOccurrences } from '../../application/listOccurrences.js';
 import { createOccurrence } from '../../application/createOccurrence.js';
 import { updateOccurrence, OccurrenceNotFoundError } from '../../application/updateOccurrence.js';
+import {
+  assertOccurrenceOwnership,
+  UnauthorizedOccurrenceAccessError,
+} from '../../application/occurrenceOwnership.js';
+import { DomainValidationError } from '../../domain/errors.js';
 import { deleteOccurrence } from '../../application/deleteOccurrence.js';
 import { retryTitleGeneration } from '../../application/retryTitleGeneration.js';
 import type { IOccurrenceRepository } from '../../domain/repositories/IOccurrenceRepository.js';
@@ -61,26 +66,35 @@ const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app
   // ------------------------------------------------------------------ //
   app.get('/occurrences/:id', { preHandler }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const occ = await occurrenceRepository.findById(id);
-    if (!occ) {
-      return reply.code(404).send({ error: 'Ocorrência não encontrada.' });
-    }
+    try {
+      const occ = await occurrenceRepository.findById(id);
+      if (!occ) {
+        return reply.code(404).send({ error: 'Ocorrência não encontrada.' });
+      }
 
-    if (req.user?.id && occ.userId && occ.userId !== req.user.id) {
-      return reply.code(404).send({ error: 'Ocorrência não encontrada.' });
-    }
+      assertOccurrenceOwnership(occ, req.user?.id);
 
-    return reply.code(200).send({
-      id: occ.id,
-      userId: occ.userId,
-      apiName: occ.apiName,
-      method: occ.method,
-      url: occ.url,
-      title: occ.title,
-      description: occ.description,
-      createdAt: occ.createdAt,
-      updatedAt: occ.updatedAt,
-    });
+      return reply.code(200).send({
+        id: occ.id,
+        userId: occ.userId,
+        apiName: occ.apiName,
+        method: occ.method,
+        url: occ.url,
+        title: occ.title,
+        description: occ.description,
+        createdAt: occ.createdAt,
+        updatedAt: occ.updatedAt,
+      });
+    } catch (err) {
+      if (err instanceof UnauthorizedOccurrenceAccessError) {
+        return reply.code(401).send({ error: err.message });
+      }
+      if (err instanceof OccurrenceNotFoundError) {
+        return reply.code(404).send({ error: err.message });
+      }
+      req.log.error({ errName: err instanceof Error ? err.name : 'UnknownError' }, 'Falha ao buscar ocorrência.');
+      return reply.code(500).send({ error: 'Falha ao buscar ocorrência.' });
+    }
   });
 
   // ------------------------------------------------------------------ //
@@ -109,10 +123,10 @@ const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app
 
       return reply.code(201).send(result);
     } catch (err) {
-      if (err instanceof Error) {
+      if (err instanceof DomainValidationError) {
         return reply.code(400).send({ error: err.message });
       }
-      req.log.error(err);
+      req.log.error({ errName: err instanceof Error ? err.name : 'UnknownError' }, 'Falha ao criar ocorrência.');
       return reply.code(500).send({ error: 'Falha ao criar ocorrência.' });
     }
   });
@@ -131,7 +145,7 @@ const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app
       };
 
       const result = await updateOccurrence(
-        { id, apiName, url, method, description },
+        { id, userId: req.user?.id, apiName, url, method, description },
         occurrenceRepository,
         titleQueue,
         diagnosisRepository,
@@ -139,13 +153,16 @@ const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app
 
       return reply.code(200).send(result);
     } catch (err) {
+      if (err instanceof UnauthorizedOccurrenceAccessError) {
+        return reply.code(401).send({ error: err.message });
+      }
       if (err instanceof OccurrenceNotFoundError) {
         return reply.code(404).send({ error: err.message });
       }
-      if (err instanceof Error) {
+      if (err instanceof DomainValidationError) {
         return reply.code(400).send({ error: err.message });
       }
-      req.log.error(err);
+      req.log.error({ errName: err instanceof Error ? err.name : 'UnknownError' }, 'Falha ao editar ocorrência.');
       return reply.code(500).send({ error: 'Falha ao editar ocorrência.' });
     }
   });
@@ -160,16 +177,20 @@ const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app
         id,
         occurrenceRepository,
         titleGenerator,
+        req.user?.id,
       );
       return reply.code(200).send(result);
     } catch (err) {
+      if (err instanceof UnauthorizedOccurrenceAccessError) {
+        return reply.code(401).send({ error: err.message });
+      }
       if (err instanceof OccurrenceNotFoundError) {
         return reply.code(404).send({ error: err.message });
       }
-      if (err instanceof Error) {
+      if (err instanceof DomainValidationError) {
         return reply.code(400).send({ error: err.message });
       }
-      req.log.error(err);
+      req.log.error({ errName: err instanceof Error ? err.name : 'UnknownError' }, 'Falha ao gerar título.');
       return reply.code(500).send({ error: 'Falha ao gerar título.' });
     }
   });
@@ -188,10 +209,13 @@ const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app
       );
       return reply.code(204).send();
     } catch (err) {
+      if (err instanceof UnauthorizedOccurrenceAccessError) {
+        return reply.code(401).send({ error: err.message });
+      }
       if (err instanceof OccurrenceNotFoundError) {
         return reply.code(404).send({ error: err.message });
       }
-      req.log.error(err);
+      req.log.error({ errName: err instanceof Error ? err.name : 'UnknownError' }, 'Falha ao excluir ocorrência.');
       return reply.code(500).send({ error: 'Falha ao excluir ocorrência.' });
     }
   });

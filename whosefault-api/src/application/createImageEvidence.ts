@@ -13,6 +13,7 @@ import { InMemoryOccurrenceRepository } from '../infra/repositories/occurrenceRe
 import { diagnosisRepository as inMemoryDiagnosisRepository } from '../infra/repositories/diagnosisRepository.js';
 import { prismaDiagnosisRepository } from '../infra/repositories/prismaDiagnosisRepository.js';
 import { OccurrenceNotFoundError } from './updateOccurrence.js';
+import { assertOccurrenceOwnership } from './occurrenceOwnership.js';
 import { mapEvidenceToResult, type IEvidenceResult } from './createEvidence.js';
 
 export class ImageValidationError extends Error {
@@ -53,9 +54,7 @@ export async function createImageEvidence(
     throw new OccurrenceNotFoundError(input.occurrenceId);
   }
 
-  if (input.userId && occurrence.userId && occurrence.userId !== input.userId) {
-    throw new OccurrenceNotFoundError(input.occurrenceId);
-  }
+  assertOccurrenceOwnership(occurrence, input.userId);
 
   const normalizedMime = (input.mimeType ?? '').toLowerCase().trim();
   if (!(ALLOWED_IMAGE_MIME_TYPES as readonly string[]).includes(normalizedMime)) {

@@ -7,8 +7,11 @@ export class PrismaOccurrenceRepository implements IOccurrenceRepository {
   constructor(private readonly db: PrismaClient = defaultPrisma) {}
 
   async findAll(userId?: string): Promise<Occurrence[]> {
+    if (!userId) {
+      return [];
+    }
     const records = await this.db.occurrence.findMany({
-      where: userId ? { userId } : undefined,
+      where: { userId },
       orderBy: { createdAt: 'desc' },
     });
 

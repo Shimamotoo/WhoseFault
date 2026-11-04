@@ -2,6 +2,8 @@ import type { IOccurrenceRepository } from '../domain/repositories/IOccurrenceRe
 import type { ITitleGenerator } from '../domain/services/ITitleGenerator.js';
 import { Occurrence } from '../domain/occurrence.js';
 import { OccurrenceNotFoundError } from './updateOccurrence.js';
+import { DomainValidationError } from '../domain/errors.js';
+import { assertOccurrenceOwnership } from './occurrenceOwnership.js';
 
 export const TITULO_GENERICO = 'Ocorrência sem descrição';
 
@@ -27,18 +29,21 @@ export async function retryTitleGeneration(
   id: string,
   repo: IOccurrenceRepository,
   titleGenerator: ITitleGenerator,
+  userId?: string,
 ): Promise<IRetryTitleResult> {
   const existing = await repo.findById(id);
   if (!existing) {
     throw new OccurrenceNotFoundError(id);
   }
 
+  assertOccurrenceOwnership(existing, userId);
+
   // Pré-condições da CA-12
   if (!existing.description) {
-    throw new Error('A ocorrência não possui descrição para gerar um título.');
+    throw new DomainValidationError('A ocorrência não possui descrição para gerar um título.');
   }
   if (existing.title !== TITULO_GENERICO) {
-    throw new Error('O título atual não é o genérico; nova tentativa não é necessária.');
+    throw new DomainValidationError('O título atual não é o genérico; nova tentativa não é necessária.');
   }
 
   let newTitle = TITULO_GENERICO;
