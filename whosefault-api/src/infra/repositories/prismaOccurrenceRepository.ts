@@ -82,6 +82,14 @@ export class PrismaOccurrenceRepository implements IOccurrenceRepository {
     });
   }
 
+  async transferOwnership(fromUserId: string, toUserId: string): Promise<number> {
+    const result = await this.db.occurrence.updateMany({
+      where: { userId: fromUserId },
+      data: { userId: toUserId },
+    });
+    return result.count;
+  }
+
   async delete(id: string): Promise<void> {
     await this.db.occurrence.delete({
       where: { id },

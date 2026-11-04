@@ -2,6 +2,7 @@ import type { ITokenVerifier, DecodedUserToken } from '../../domain/services/ITo
 
 export class StubTokenVerifier implements ITokenVerifier {
   private defaultUser: DecodedUserToken;
+  private tokenMap = new Map<string, DecodedUserToken>();
 
   constructor(defaultUser?: Partial<DecodedUserToken>) {
     this.defaultUser = {
@@ -12,9 +13,17 @@ export class StubTokenVerifier implements ITokenVerifier {
     };
   }
 
+  registerToken(token: string, user: DecodedUserToken): void {
+    this.tokenMap.set(token, user);
+  }
+
   async verifyIdToken(token: string): Promise<DecodedUserToken> {
     if (!token || token.trim() === '' || token === 'invalid-token') {
       throw new Error('Token inválido ou expirado.');
+    }
+
+    if (this.tokenMap.has(token)) {
+      return this.tokenMap.get(token)!;
     }
 
     if (token === 'anonymous-token') {

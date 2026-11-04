@@ -103,7 +103,10 @@ export const OccurrencesProvider: React.FC<{ children: React.ReactNode }> = ({
     new Map(),
   );
 
+  const pollTokensRef = useRef<Map<string, symbol>>(new Map());
+
   const stopTitlePolling = useCallback((occurrenceId: string) => {
+    pollTokensRef.current.delete(occurrenceId);
     const timer = pollTimersRef.current.get(occurrenceId);
     if (timer !== undefined) {
       clearTimeout(timer);
@@ -118,6 +121,7 @@ export const OccurrencesProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   const clearAllTitlePolling = useCallback(() => {
+    pollTokensRef.current.clear();
     for (const timer of pollTimersRef.current.values()) {
       clearTimeout(timer);
     }
@@ -127,10 +131,12 @@ export const OccurrencesProvider: React.FC<{ children: React.ReactNode }> = ({
 
   useEffect(() => {
     const timers = pollTimersRef.current;
+    const tokens = pollTokensRef.current;
     return () => {
       for (const timer of timers.values()) {
         clearTimeout(timer);
       }
+      tokens.clear();
       timers.clear();
     };
   }, []);
@@ -146,13 +152,23 @@ export const OccurrencesProvider: React.FC<{ children: React.ReactNode }> = ({
       intervalMs: number = TITLE_POLL_INTERVAL_MS,
     ) => {
       stopTitlePolling(occurrenceId);
+      const token = Symbol(occurrenceId);
+      pollTokensRef.current.set(occurrenceId, token);
       setPollingTitleIds((prev) => ({ ...prev, [occurrenceId]: true }));
 
       const scheduleAttempt = (attempt: number) => {
         const timer = setTimeout(async () => {
           pollTimersRef.current.delete(occurrenceId);
+          if (pollTokensRef.current.get(occurrenceId) !== token) {
+            return;
+          }
+
           try {
             const latest = await api.getOccurrence(occurrenceId);
+            if (pollTokensRef.current.get(occurrenceId) !== token) {
+              return;
+            }
+
             setOccurrences((prev) =>
               prev.map((occ) => (occ.id === occurrenceId ? latest : occ)),
             );
@@ -163,6 +179,10 @@ export const OccurrencesProvider: React.FC<{ children: React.ReactNode }> = ({
             }
           } catch {
             // Falha transitória na consulta não interrompe o fluxo da UI
+          }
+
+          if (pollTokensRef.current.get(occurrenceId) !== token) {
+            return;
           }
 
           if (attempt < maxAttempts) {

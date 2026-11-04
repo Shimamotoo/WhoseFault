@@ -73,27 +73,27 @@ Documento de rastreamento das correções, refatorações e melhorias de seguran
 
 ### Onda 3 — Sessão, Vínculo de Conta e Polling (`whosefault-web` + API)
 
-- [ ] **PA-13** `[minor]` — **Deduplicar sincronização de perfil (`POST /auth/sync`)**
+- [x] **PA-13** `[minor]` — **Deduplicar sincronização de perfil (`POST /auth/sync`)**
   - **Problema:** Chamadas concorrentes a `syncUserProfile()` e publicação de `user` antes de obter o perfil criavam buscas prematuras.
   - **Ação:** Aguardar perfil no `onAuthStateChanged` antes de emitir `user` e remover chamadas redundantes nos fluxos de login direto.
   - **Arquivos:** `whosefault-web/src/context/AuthContext.tsx`.
 
-- [ ] **PA-14** `[minor]` — **Reaproveitar credencial OAuth pendente sem abrir segundo pop-up**
+- [x] **PA-14** `[minor]` — **Reaproveitar credencial OAuth pendente sem abrir segundo pop-up**
   - **Problema:** Abrir segundo pop-up após colisão de credencial perde o gesto do usuário e é bloqueado pelos navegadores.
   - **Ação:** Usar `GoogleAuthProvider.credentialFromError` e autenticar com `signInWithCredential`.
   - **Arquivos:** `whosefault-web/src/context/AuthContext.tsx`.
 
-- [ ] **PA-15** `[minor]` — **Migração de ocorrências do visitante em caso de colisão de conta Google**
+- [x] **PA-15** `[minor]` — **Migração de ocorrências do visitante em caso de colisão de conta Google**
   - **Problema:** Ao vincular visitante com conta Google já existente, as ocorrências criadas no modo anônimo eram abandonadas.
   - **Ação:** Endpoint `POST /api/auth/merge-guest` transferindo ocorrências do visitante para a conta permanente.
   - **Arquivos:** `whosefault-api/src/http/routes/auth.routes.ts`, `whosefault-api/src/application/mergeGuestAccount.ts`, `whosefault-web/src/services/api.ts`, `whosefault-web/src/context/AuthContext.tsx`.
 
-- [ ] **PA-12** `[minor]` — **Auto-fechar `LoginDialog` após visitante vincular conta Google**
+- [x] **PA-12** `[minor]` — **Auto-fechar `LoginDialog` após visitante vincular conta Google**
   - **Problema:** O modal permanecia aberto após o sucesso do vínculo de conta.
   - **Ação:** Adicionar efeito observando a transição de `isAnonymous === false` para invocar `onOpenChange(false)`.
   - **Arquivos:** `whosefault-web/src/components/auth/LoginDialog.tsx`.
 
-- [ ] **PA-11** `[minor]` — **Token de cancelamento para polling assíncrono de título**
+- [x] **PA-11** `[minor]` — **Token de cancelamento para polling assíncrono de título**
   - **Problema:** Requisições assíncronas em voo reagendavam novas tentativas de polling mesmo após cancelamento/logout.
   - **Ação:** Implementar controle de token por ocorrência (`Symbol`) invalidando execuções defasadas.
   - **Arquivos:** `whosefault-web/src/context/OccurrencesContext.tsx`.
@@ -118,20 +118,20 @@ Documento de rastreamento das correções, refatorações e melhorias de seguran
 
 | PA | Descrição | Status | Data de Conclusão | Commit / PR |
 | :---: | :--- | :---: | :---: | :--- |
-| **PA-01** | Auth obrigatória por padrão | `Concluído` | 2026-11-04 | — |
-| **PA-02** | Guard de Ownership / Anti-IDOR | `Concluído` | 2026-11-04 | — |
-| **PA-03** | Blindagem de params vs body | `Concluído` | 2026-11-04 | — |
-| **PA-04** | DomainValidationError vs HTTP 500 | `Concluído` | 2026-11-04 | — |
-| **PA-05** | Preservar description no PATCH | `Pendente` | — | — |
-| **PA-06** | Init explícito do Firebase Admin | `Pendente` | — | — |
-| **PA-07** | Limpeza de imagens GCS no cleanup | `Pendente` | — | — |
-| **PA-08** | Regex de connection strings | `Pendente` | — | — |
-| **PA-09** | Evidence.restore na reidratação | `Pendente` | — | — |
-| **PA-10** | Preservar status 4xx no error handler | `Concluído` | 2026-11-04 | — |
-| **PA-11** | Token de cancelamento no polling | `Pendente` | — | — |
-| **PA-12** | Auto-fechar LoginDialog | `Pendente` | — | — |
-| **PA-13** | Deduplicar sync de perfil | `Pendente` | — | — |
-| **PA-14** | signInWithCredential sem 2º popup | `Pendente` | — | — |
-| **PA-15** | Migração de dados de visitante | `Pendente` | — | — |
+| **PA-01** | Auth obrigatória por padrão | `Concluído` | 2026-11-04 | #8 |
+| **PA-02** | Guard de Ownership / Anti-IDOR | `Concluído` | 2026-11-04 | #8 |
+| **PA-03** | Blindagem de params vs body | `Concluído` | 2026-11-04 | #8 |
+| **PA-04** | DomainValidationError vs HTTP 500 | `Concluído` | 2026-11-04 | #8 |
+| **PA-05** | Preservar description no PATCH | `Concluído` | 2026-11-04 | #9 |
+| **PA-06** | Init explícito do Firebase Admin | `Concluído` | 2026-11-04 | #9 |
+| **PA-07** | Limpeza de imagens GCS no cleanup | `Concluído` | 2026-11-04 | #9 |
+| **PA-08** | Regex de connection strings | `Concluído` | 2026-11-04 | #9 |
+| **PA-09** | Evidence.restore na reidratação | `Concluído` | 2026-11-04 | #9 |
+| **PA-10** | Preservar status 4xx no error handler | `Concluído` | 2026-11-04 | #8 |
+| **PA-11** | Token de cancelamento no polling | `Concluído` | 2026-11-04 | — |
+| **PA-12** | Auto-fechar LoginDialog | `Concluído` | 2026-11-04 | — |
+| **PA-13** | Deduplicar sync de perfil | `Concluído` | 2026-11-04 | — |
+| **PA-14** | signInWithCredential sem 2º popup | `Concluído` | 2026-11-04 | — |
+| **PA-15** | Migração de dados de visitante | `Concluído` | 2026-11-04 | — |
 | **PA-16** | Acessibilidade por teclado nos Cards | `Pendente` | — | — |
 | **PA-17** | Alerta de segredo restrito a guidance | `Pendente` | — | — |

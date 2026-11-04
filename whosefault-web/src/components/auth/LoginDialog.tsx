@@ -33,6 +33,12 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({
 
   const isAnonymous = user?.isAnonymous ?? false;
 
+  React.useEffect(() => {
+    if (open && canClose && user && !isAnonymous) {
+      onOpenChange?.(false);
+    }
+  }, [open, canClose, user, isAnonymous, onOpenChange]);
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent

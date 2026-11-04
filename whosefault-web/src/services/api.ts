@@ -134,6 +134,20 @@ async function handleErrorResponse(
   });
 }
 
+export async function mergeGuestSession(
+  guestToken: string,
+): Promise<{ success: boolean; transferredCount: number }> {
+  const res = await fetchWithAuth(`${API_BASE_URL}/auth/merge-guest`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ guestToken }),
+  });
+  if (!res.ok) {
+    await handleErrorResponse(res, "Falha ao migrar ocorrências da sessão visitante.");
+  }
+  return (await res.json()) as { success: boolean; transferredCount: number };
+}
+
 export async function syncUserProfile(): Promise<UserProfile> {
   const res = await fetchWithAuth(`${API_BASE_URL}/auth/sync`, {
     method: "POST",
