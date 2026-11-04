@@ -3,13 +3,9 @@ import type { IEvidenceRepository } from '../domain/repositories/IEvidenceReposi
 import type { IStorageService } from '../domain/services/IStorageService.js';
 import { OccurrenceNotFoundError } from './updateOccurrence.js';
 import { EvidenceNotFoundError } from './updateEvidence.js';
+import { assertOccurrenceOwnership, UnauthorizedOccurrenceAccessError } from './occurrenceOwnership.js';
 
-export class UnauthorizedEvidenceAccessError extends Error {
-  constructor() {
-    super('Autenticação obrigatória para visualizar evidências desta ocorrência.');
-    this.name = 'UnauthorizedEvidenceAccessError';
-  }
-}
+export { UnauthorizedOccurrenceAccessError as UnauthorizedEvidenceAccessError };
 
 export class EvidenceNotAnImageError extends Error {
   constructor(id: string) {
@@ -44,14 +40,7 @@ export async function getEvidenceImage(
     throw new OccurrenceNotFoundError(input.occurrenceId);
   }
 
-  if (occurrence.userId) {
-    if (!input.userId) {
-      throw new UnauthorizedEvidenceAccessError();
-    }
-    if (occurrence.userId !== input.userId) {
-      throw new OccurrenceNotFoundError(input.occurrenceId);
-    }
-  }
+  assertOccurrenceOwnership(occurrence, input.userId);
 
   const evidence = await evidenceRepo.findById(input.evidenceId);
   if (!evidence || evidence.occurrenceId !== input.occurrenceId) {

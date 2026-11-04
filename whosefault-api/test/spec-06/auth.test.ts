@@ -1,8 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createServer } from '../../src/http/server.js';
 import { InMemoryUserRepository } from '../../src/infra/repositories/userRepository.js';
 import { InMemoryOccurrenceRepository } from '../../src/infra/repositories/occurrenceRepository.js';
+import { InMemoryEvidenceRepository } from '../../src/infra/repositories/evidenceRepository.js';
+import { InMemoryDiagnosisRepository } from '../../src/infra/repositories/diagnosisRepository.js';
 import { StubTokenVerifier } from '../../src/infra/auth/stubTokenVerifier.js';
+import { StubDiagnosisGenerator } from '../../src/infra/ai/stubDiagnosisGenerator.js';
+import { StubTitleGenerator } from '../../src/infra/ai/stubTitleGenerator.js';
 import { cleanupExpiredGuests } from '../../src/application/cleanupGuests.js';
 import { User } from '../../src/domain/user.js';
 
@@ -240,5 +244,258 @@ describe('SPEC-06 — Gerenciar Identidade e Autenticação', () => {
     expect(await userRepo.findById('expired-1')).toBeNull();
     expect(await userRepo.findById('recent-1')).not.toBeNull();
     expect(await userRepo.findById('regular-1')).not.toBeNull();
+  });
+
+  // ------------------------------------------------------------------ //
+  // PA-01: Autenticação obrigatória por padrão
+  // ------------------------------------------------------------------ //
+  it('PA-01: deve exigir autenticação por padrão quando requireAuth não for informado', async () => {
+    const defaultAuthApp = createServer({
+      userRepository: userRepo,
+      occurrenceRepository: occurrenceRepo,
+      tokenVerifier,
+    });
+
+    const res = await defaultAuthApp.inject({
+      method: 'GET',
+      url: '/api/occurrences',
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  // ------------------------------------------------------------------ //
+  // PA-02: Anti-IDOR e Verificação Centralizada de Propriedade
+  // ------------------------------------------------------------------ //
+  describe('PA-02: Anti-IDOR e Isolamento de Propriedade de Ocorrências, Evidências e Diagnósticos', () => {
+    it('deve retornar 404 quando User B tentar acessar, editar, gerar diagnóstico ou excluir ocorrência e evidência de User A', async () => {
+      const evidenceRepo = new InMemoryEvidenceRepository();
+      const diagnosisRepo = new InMemoryDiagnosisRepository();
+      const diagnosisGenerator = new StubDiagnosisGenerator();
+      const titleGenerator = new StubTitleGenerator();
+
+      // Setup app para User A
+      const tokenVerifierA = new StubTokenVerifier({ uid: 'uid-user-a' });
+      const appUserA = createServer({
+        userRepository: userRepo,
+        occurrenceRepository: occurrenceRepo,
+        evidenceRepository: evidenceRepo,
+        diagnosisRepository: diagnosisRepo,
+        diagnosisGenerator,
+        titleGenerator,
+        tokenVerifier: tokenVerifierA,
+      });
+
+      // Setup app para User B
+      const tokenVerifierB = new StubTokenVerifier({ uid: 'uid-user-b' });
+      const appUserB = createServer({
+        userRepository: userRepo,
+        occurrenceRepository: occurrenceRepo,
+        evidenceRepository: evidenceRepo,
+        diagnosisRepository: diagnosisRepo,
+        diagnosisGenerator,
+        titleGenerator,
+        tokenVerifier: tokenVerifierB,
+      });
+
+      // 1. User A cria ocorrência
+      const createOccRes = await appUserA.inject({
+        method: 'POST',
+        url: '/api/occurrences',
+        headers: { authorization: 'Bearer token-a' },
+        payload: {
+          apiName: 'API Confidencial A',
+          url: 'https://api.empresa.com/privado',
+          method: 'GET',
+          description: 'Descrição original A',
+        },
+      });
+      expect(createOccRes.statusCode).toBe(201);
+      const occA = JSON.parse(createOccRes.body);
+
+      // 2. User A cria evidência
+      const createEvRes = await appUserA.inject({
+        method: 'POST',
+        url: `/api/occurrences/${occA.id}/evidences`,
+        headers: { authorization: 'Bearer token-a' },
+        payload: {
+          type: 'MANUAL_NOTE',
+          content: 'Evidência restrita do User A',
+        },
+      });
+      expect(createEvRes.statusCode).toBe(201);
+      const evA = JSON.parse(createEvRes.body);
+
+      // 3. User B tenta GET /occurrences/:id -> 404
+      const getOccB = await appUserB.inject({
+        method: 'GET',
+        url: `/api/occurrences/${occA.id}`,
+        headers: { authorization: 'Bearer token-b' },
+      });
+      expect(getOccB.statusCode).toBe(404);
+
+      // 4. User B tenta PATCH /occurrences/:id -> 404
+      const patchOccB = await appUserB.inject({
+        method: 'PATCH',
+        url: `/api/occurrences/${occA.id}`,
+        headers: { authorization: 'Bearer token-b' },
+        payload: { apiName: 'Hack Name' },
+      });
+      expect(patchOccB.statusCode).toBe(404);
+
+      // 5. User B tenta POST /occurrences/:id/retry-title -> 404
+      const retryTitleB = await appUserB.inject({
+        method: 'POST',
+        url: `/api/occurrences/${occA.id}/retry-title`,
+        headers: { authorization: 'Bearer token-b' },
+      });
+      expect(retryTitleB.statusCode).toBe(404);
+
+      // 6. User B tenta GET /occurrences/:id/evidences -> 404
+      const listEvB = await appUserB.inject({
+        method: 'GET',
+        url: `/api/occurrences/${occA.id}/evidences`,
+        headers: { authorization: 'Bearer token-b' },
+      });
+      expect(listEvB.statusCode).toBe(404);
+
+      // 7. User B tenta POST /occurrences/:id/evidences -> 404
+      const postEvB = await appUserB.inject({
+        method: 'POST',
+        url: `/api/occurrences/${occA.id}/evidences`,
+        headers: { authorization: 'Bearer token-b' },
+        payload: {
+          type: 'MANUAL_NOTE',
+          content: 'Intruso tentando anexar evidência',
+        },
+      });
+      expect(postEvB.statusCode).toBe(404);
+
+      // 8. User B tenta PATCH /occurrences/:id/evidences/:evId -> 404
+      const patchEvB = await appUserB.inject({
+        method: 'PATCH',
+        url: `/api/occurrences/${occA.id}/evidences/${evA.id}`,
+        headers: { authorization: 'Bearer token-b' },
+        payload: { content: 'Intruso editando' },
+      });
+      expect(patchEvB.statusCode).toBe(404);
+
+      // 9. User B tenta DELETE /occurrences/:id/evidences/:evId -> 404
+      const delEvB = await appUserB.inject({
+        method: 'DELETE',
+        url: `/api/occurrences/${occA.id}/evidences/${evA.id}?confirm=true`,
+        headers: { authorization: 'Bearer token-b' },
+      });
+      expect(delEvB.statusCode).toBe(404);
+
+      // 10. User B tenta POST /occurrences/:id/diagnosis -> 404
+      const postDiagB = await appUserB.inject({
+        method: 'POST',
+        url: `/api/occurrences/${occA.id}/diagnosis`,
+        headers: { authorization: 'Bearer token-b' },
+      });
+      expect(postDiagB.statusCode).toBe(404);
+
+      // 11. User B tenta GET /occurrences/:id/diagnosis -> 404
+      const getDiagB = await appUserB.inject({
+        method: 'GET',
+        url: `/api/occurrences/${occA.id}/diagnosis`,
+        headers: { authorization: 'Bearer token-b' },
+      });
+      expect(getDiagB.statusCode).toBe(404);
+
+      // 12. User B tenta DELETE /occurrences/:id -> 404
+      const delOccB = await appUserB.inject({
+        method: 'DELETE',
+        url: `/api/occurrences/${occA.id}`,
+        headers: { authorization: 'Bearer token-b' },
+      });
+      expect(delOccB.statusCode).toBe(404);
+
+      // 13. Confirma que a ocorrência do User A continua intacta
+      const getOccA = await appUserA.inject({
+        method: 'GET',
+        url: `/api/occurrences/${occA.id}`,
+        headers: { authorization: 'Bearer token-a' },
+      });
+      expect(getOccA.statusCode).toBe(200);
+    });
+
+    it('deve retornar 401 quando requisição sem autenticação tentar acessar ocorrência pertencente a um usuário', async () => {
+      const tokenVerifierA = new StubTokenVerifier({ uid: 'uid-user-a' });
+      const openApp = createServer({
+        userRepository: userRepo,
+        occurrenceRepository: occurrenceRepo,
+        tokenVerifier: tokenVerifierA,
+        requireAuth: false, // simula chamada onde token não foi enviado mas rota verifica ownership
+      });
+
+      // Cria ocorrência pertencente a User A diretamente no repo
+      const occ = (await import('../../src/domain/occurrence.js')).Occurrence.create({
+        apiName: 'API A',
+        url: 'https://api.exemplo.com/test',
+        method: 'GET',
+        userId: 'some-user-id',
+      });
+      await occurrenceRepo.save(occ);
+
+      const unauthGet = await openApp.inject({
+        method: 'GET',
+        url: `/api/occurrences/${occ.id}`,
+      });
+      expect(unauthGet.statusCode).toBe(401);
+    });
+  });
+
+  // ------------------------------------------------------------------ //
+  // PA-10: Tratamento global de erros 4xx Fastify
+  // ------------------------------------------------------------------ //
+  describe('PA-10: Tratamento global de erros 4xx Fastify', () => {
+    it('deve retornar HTTP 400 ao receber JSON malformado', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/occurrences',
+        headers: {
+          authorization: 'Bearer valid-token',
+          'content-type': 'application/json',
+        },
+        payload: '{"apiName": "invalido", ',
+      });
+
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.body);
+      expect(body.error).toBe('Requisição inválida ou payload JSON malformado.');
+    });
+  });
+
+  // ------------------------------------------------------------------ //
+  // PA-04: Restrição de HTTP 400 a DomainValidationError e ocultação de erros internos
+  // ------------------------------------------------------------------ //
+  describe('PA-04: Restrição de HTTP 400 a DomainValidationError e ocultação de erros internos', () => {
+    it('deve retornar HTTP 500 sem expor a mensagem interna quando ocorrer erro inesperado no repositório', async () => {
+      const failingRepo = {
+        findAll: vi.fn(),
+        findById: vi.fn().mockRejectedValue(new Error('PrismaClientKnownRequestError: connection pool timeout at line 42')),
+        save: vi.fn(),
+        update: vi.fn(),
+        delete: vi.fn(),
+      };
+
+      const failingApp = createServer({
+        userRepository: userRepo,
+        occurrenceRepository: failingRepo,
+        tokenVerifier,
+        requireAuth: false,
+      });
+
+      const res = await failingApp.inject({
+        method: 'GET',
+        url: '/api/occurrences/some-id',
+      });
+
+      expect(res.statusCode).toBe(500);
+      const body = JSON.parse(res.body);
+      expect(body.error).toBe('Falha ao buscar ocorrência.');
+      expect(JSON.stringify(body)).not.toContain('PrismaClientKnownRequestError');
+    });
   });
 });

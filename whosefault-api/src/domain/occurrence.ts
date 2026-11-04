@@ -1,3 +1,5 @@
+import { DomainValidationError } from "./errors.js";
+
 export const HTTP_METHODS = [
   "GET",
   "POST",
@@ -57,30 +59,30 @@ export class Occurrence {
 
   static create(props: OccurrenceProps): Occurrence {
     if (!props.apiName || props.apiName.trim() === "") {
-      throw new Error("Nome da API é obrigatório.");
+      throw new DomainValidationError("Nome da API é obrigatório.");
     }
 
     if (!props.url || props.url.trim() === "") {
-      throw new Error("URL é obrigatória.");
+      throw new DomainValidationError("URL é obrigatória.");
     }
 
     let parsedUrl: URL;
     try {
       parsedUrl = new URL(props.url);
     } catch {
-      throw new Error("URL inválida.");
+      throw new DomainValidationError("URL inválida.");
     }
 
     if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-      throw new Error("URL deve utilizar o protocolo HTTP ou HTTPS.");
+      throw new DomainValidationError("URL deve utilizar o protocolo HTTP ou HTTPS.");
     }
 
     if (!props.method) {
-      throw new Error("Método HTTP é obrigatório.");
+      throw new DomainValidationError("Método HTTP é obrigatório.");
     }
 
     if (!HTTP_METHODS.includes(props.method)) {
-      throw new Error(`Método HTTP inválido: ${props.method}.`);
+      throw new DomainValidationError(`Método HTTP inválido: ${props.method}.`);
     }
 
     const now = new Date();

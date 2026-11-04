@@ -21,6 +21,7 @@ import {
 import { defaultSecretDetector } from '../../domain/services/secretDetector.js';
 import { prismaDiagnosisRepository } from '../../infra/repositories/prismaDiagnosisRepository.js';
 import { OccurrenceNotFoundError } from '../updateOccurrence.js';
+import { assertOccurrenceOwnership } from '../occurrenceOwnership.js';
 
 /**
  * Exceção lançada quando o double-check de segurança detecta credenciais ou segredos
@@ -132,12 +133,14 @@ export class GenerateDiagnosisUseCase {
     this.storageService = deps.storageService;
   }
 
-  async execute(occurrenceId: string): Promise<IGenerateDiagnosisOutput> {
+  async execute(occurrenceId: string, userId?: string): Promise<IGenerateDiagnosisOutput> {
     // Passo 1: Buscar a Ocorrência e todas as Evidências associadas e armazenar maior updatedAt
     const occurrence = await this.occurrenceRepository.findById(occurrenceId);
     if (!occurrence) {
       throw new OccurrenceNotFoundError(occurrenceId);
     }
+
+    assertOccurrenceOwnership(occurrence, userId);
 
     const evidences = await this.evidenceRepository.findByOccurrenceId(occurrenceId);
     const initialMaxUpdatedAt = computeMaxUpdatedAt(occurrence, evidences);

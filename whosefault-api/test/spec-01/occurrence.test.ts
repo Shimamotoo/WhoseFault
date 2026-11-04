@@ -36,6 +36,7 @@ beforeAll(async () => {
     occurrenceRepository,
     titleGenerator: fakeTitleGenerator,
     titleQueue: stubTitleQueue,
+    requireAuth: false,
   });
   await app.ready();
 });

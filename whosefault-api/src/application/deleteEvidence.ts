@@ -6,6 +6,7 @@ import { InMemoryOccurrenceRepository } from '../infra/repositories/occurrenceRe
 import { diagnosisRepository as inMemoryDiagnosisRepository } from '../infra/repositories/diagnosisRepository.js';
 import { prismaDiagnosisRepository } from '../infra/repositories/prismaDiagnosisRepository.js';
 import { OccurrenceNotFoundError } from './updateOccurrence.js';
+import { assertOccurrenceOwnership } from './occurrenceOwnership.js';
 import { EvidenceNotFoundError } from './updateEvidence.js';
 
 export class DeleteConfirmationRequiredError extends Error {
@@ -21,6 +22,7 @@ export interface IDeleteEvidenceInput {
   occurrenceId: string;
   evidenceId: string;
   confirmed: boolean;
+  userId?: string;
 }
 
 /**
@@ -45,6 +47,8 @@ export async function deleteEvidence(
   if (!occurrence) {
     throw new OccurrenceNotFoundError(input.occurrenceId);
   }
+
+  assertOccurrenceOwnership(occurrence, input.userId);
 
   const existing = await evidenceRepo.findById(input.evidenceId);
   if (!existing || existing.occurrenceId !== input.occurrenceId) {

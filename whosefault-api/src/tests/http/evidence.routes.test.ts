@@ -12,6 +12,7 @@ describe('SPEC-03: Endpoints HTTP de Evidências (/api/occurrences/:occurrenceId
     createServer({
       occurrenceRepository,
       evidenceRepository,
+      requireAuth: false,
     });
 
   beforeEach(async () => {
@@ -289,5 +290,45 @@ describe('SPEC-03: Endpoints HTTP de Evidências (/api/occurrences/:occurrenceId
     expect(resNext.statusCode).toBe(204);
     expect(resNext.headers['access-control-allow-origin']).toBe('http://localhost:3000');
     expect(resNext.headers['access-control-allow-methods']).toContain('DELETE');
+  });
+
+  it('PA-03: deve garantir que occurrenceId e evidenceId da URL prevalecem sobre valores divergentes no payload do PATCH', async () => {
+    const app = createTestServer();
+
+    // 1. Cria uma evidência inicial
+    const postRes = await app.inject({
+      method: 'POST',
+      url: `/api/occurrences/${occurrenceId}/evidences`,
+      payload: {
+        type: 'MANUAL_NOTE',
+        content: 'Nota original para teste de imutabilidade de IDs',
+      },
+    });
+    expect(postRes.statusCode).toBe(201);
+    const created = JSON.parse(postRes.body);
+
+    // 2. Faz PATCH tentando sobrescrever occurrenceId e evidenceId
+    const patchRes = await app.inject({
+      method: 'PATCH',
+      url: `/api/occurrences/${occurrenceId}/evidences/${created.id}`,
+      payload: {
+        occurrenceId: 'hack-fake-occurrence-id',
+        evidenceId: 'hack-fake-evidence-id',
+        id: 'hack-fake-id',
+        content: 'Nota atualizada com sucesso',
+      },
+    });
+
+    expect(patchRes.statusCode).toBe(200);
+    const updated = JSON.parse(patchRes.body);
+    expect(updated.id).toBe(created.id);
+    expect(updated.occurrenceId).toBe(occurrenceId);
+    expect(updated.content).toBe('Nota atualizada com sucesso');
+
+    // Confirma no repositório que a evidência original foi atualizada e não uma entidade com ID falso
+    const persisted = await evidenceRepository.findById(created.id);
+    expect(persisted).not.toBeNull();
+    expect(persisted?.occurrenceId).toBe(occurrenceId);
+    expect(persisted?.content).toBe('Nota atualizada com sucesso');
   });
 });

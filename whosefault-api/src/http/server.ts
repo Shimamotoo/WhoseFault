@@ -75,7 +75,7 @@ export function createServer(deps: ServerDependencies = {}) {
     diagnosisGenerator = new StubDiagnosisGenerator(),
     secretDetector = defaultSecretDetector,
     storageService = new StubStorageService(),
-    requireAuth = false,
+    requireAuth = true,
   } = deps;
 
   const isDev = process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test';
@@ -170,6 +170,14 @@ export function createServer(deps: ServerDependencies = {}) {
     if (error.code?.startsWith('FST_INVALID_MULTIPART')) {
       return reply.status(400).send({
         error: 'Formato multipart/form-data inválido.',
+      });
+    }
+    if (typeof error.statusCode === 'number' && error.statusCode >= 400 && error.statusCode < 500) {
+      return reply.status(error.statusCode).send({
+        error:
+          error.statusCode === 400
+            ? 'Requisição inválida ou payload JSON malformado.'
+            : error.message || 'Requisição inválida.',
       });
     }
     request.log.error({ errName: error.name }, 'Unhandled server error');

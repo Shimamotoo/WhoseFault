@@ -2,6 +2,7 @@ import type { IOccurrenceRepository } from '../domain/repositories/IOccurrenceRe
 import type { IEvidenceRepository } from '../domain/repositories/IEvidenceRepository.js';
 import type { IStorageService } from '../domain/services/IStorageService.js';
 import { OccurrenceNotFoundError } from './updateOccurrence.js';
+import { assertOccurrenceOwnership } from './occurrenceOwnership.js';
 
 export interface IDeleteOccurrenceInput {
   id: string;
@@ -25,10 +26,7 @@ export async function deleteOccurrence(
     throw new OccurrenceNotFoundError(input.id);
   }
 
-  // Se a ocorrência tem dono e quem requisitou não é o dono, oculta existência (404)
-  if (input.userId && existing.userId && existing.userId !== input.userId) {
-    throw new OccurrenceNotFoundError(input.id);
-  }
+  assertOccurrenceOwnership(existing, input.userId);
 
   if (evidenceRepo && storageService) {
     const evidences = await evidenceRepo.findByOccurrenceId(input.id);

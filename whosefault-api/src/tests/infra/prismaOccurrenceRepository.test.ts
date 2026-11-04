@@ -26,7 +26,7 @@ describe('Integração: PrismaOccurrenceRepository (PostgreSQL)', () => {
   });
 
   beforeEach(async () => {
-    await testPrisma.$executeRawUnsafe('TRUNCATE TABLE occurrences, evidences CASCADE;');
+    await testPrisma.$executeRawUnsafe('TRUNCATE TABLE users, occurrences, evidences CASCADE;');
   });
 
   it('deve persistir uma ocorrência e recuperá-la por ID', async () => {
@@ -54,14 +54,25 @@ describe('Integração: PrismaOccurrenceRepository (PostgreSQL)', () => {
   });
 
   it('deve listar todas as ocorrências ordenadas da mais recente para a mais antiga', async () => {
-    // Arrange
+    // Arrange - Cria registro real na tabela users para satisfazer @db.Uuid e a FK occurrences_user_id_fkey
+    const user = await testPrisma.user.create({
+      data: {
+        firebaseUid: 'firebase-uid-integration-test',
+        email: 'integration@whosefault.com',
+        name: 'Integration Test User',
+        isAnonymous: false,
+      },
+    });
+
     const first = Occurrence.create({
+      userId: user.id,
       apiName: 'API 1',
       url: 'https://api1.com/test',
       method: 'GET' as HttpMethod,
       createdAt: new Date('2026-01-01T10:00:00Z'),
     });
     const second = Occurrence.create({
+      userId: user.id,
       apiName: 'API 2',
       url: 'https://api2.com/test',
       method: 'POST' as HttpMethod,
@@ -72,9 +83,11 @@ describe('Integração: PrismaOccurrenceRepository (PostgreSQL)', () => {
     await repo.save(second);
 
     // Act
-    const list = await repo.findAll();
+    const list = await repo.findAll(user.id);
+    const unauthenticatedList = await repo.findAll();
 
     // Assert
+    expect(unauthenticatedList).toEqual([]);
     expect(list).toHaveLength(2);
     expect(list[0]?.id).toBe(second.id);
     expect(list[1]?.id).toBe(first.id);
