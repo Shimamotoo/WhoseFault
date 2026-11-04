@@ -259,7 +259,7 @@ export const CreateEvidenceDialog: React.FC<CreateEvidenceDialogProps> = ({
     } catch (err) {
       if (
         err instanceof ApiError &&
-        (err.status === 422 || Boolean(err.guidance))
+        Boolean(err.guidance)
       ) {
         setSecretAlert({
           message: err.message,

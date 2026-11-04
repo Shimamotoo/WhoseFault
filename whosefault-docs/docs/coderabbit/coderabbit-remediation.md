@@ -102,12 +102,12 @@ Documento de rastreamento das correções, refatorações e melhorias de seguran
 
 ### Onda 4 — UX de Validação e Acessibilidade (`whosefault-web`)
 
-- [ ] **PA-16** `[minor]` — **Acessibilidade por teclado e leitores de tela nos cards de ocorrências**
+- [x] **PA-16** `[minor]` — **Acessibilidade por teclado e leitores de tela nos cards de ocorrências**
   - **Problema:** Cards navegáveis apenas via clique de mouse em `div`.
   - **Ação:** Adicionar `role="link"`, `tabIndex={0}`, `aria-label`, suporte a teclas `Enter` / `Space` e anel de foco.
   - **Arquivos:** `whosefault-web/src/pages/OccurrencesListPage.tsx`.
 
-- [ ] **PA-17** `[minor]` — **Exibir banner de segredo apenas quando houver orientação de segurança**
+- [x] **PA-17** `[minor]` — **Exibir banner de segredo apenas quando houver orientação de segurança**
   - **Problema:** Qualquer status 422 disparava o banner de bloqueio de segurança mesmo sem envolver detecção de segredos.
   - **Ação:** Condicionar exibição do banner estritamente à presença de `err.guidance`.
   - **Arquivos:** `whosefault-web/src/components/domain/CreateEvidenceDialog.tsx`.
@@ -128,10 +128,10 @@ Documento de rastreamento das correções, refatorações e melhorias de seguran
 | **PA-08** | Regex de connection strings | `Concluído` | 2026-11-04 | #9 |
 | **PA-09** | Evidence.restore na reidratação | `Concluído` | 2026-11-04 | #9 |
 | **PA-10** | Preservar status 4xx no error handler | `Concluído` | 2026-11-04 | #8 |
-| **PA-11** | Token de cancelamento no polling | `Concluído` | 2026-11-04 | — |
-| **PA-12** | Auto-fechar LoginDialog | `Concluído` | 2026-11-04 | — |
-| **PA-13** | Deduplicar sync de perfil | `Concluído` | 2026-11-04 | — |
-| **PA-14** | signInWithCredential sem 2º popup | `Concluído` | 2026-11-04 | — |
-| **PA-15** | Migração de dados de visitante | `Concluído` | 2026-11-04 | — |
-| **PA-16** | Acessibilidade por teclado nos Cards | `Pendente` | — | — |
-| **PA-17** | Alerta de segredo restrito a guidance | `Pendente` | — | — |
+| **PA-11** | Token de cancelamento no polling | `Concluído` | 2026-11-04 | #10 |
+| **PA-12** | Auto-fechar LoginDialog | `Concluído` | 2026-11-04 | #10 |
+| **PA-13** | Deduplicar sync de perfil | `Concluído` | 2026-11-04 | #10 |
+| **PA-14** | signInWithCredential sem 2º popup | `Concluído` | 2026-11-04 | #10 |
+| **PA-15** | Migração de dados de visitante | `Concluído` | 2026-11-04 | #10 |
+| **PA-16** | Acessibilidade por teclado nos Cards | `Concluído` | 2026-11-04 | — |
+| **PA-17** | Alerta de segredo restrito a guidance | `Concluído` | 2026-11-04 | — |
