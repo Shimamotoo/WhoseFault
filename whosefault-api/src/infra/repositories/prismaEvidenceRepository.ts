@@ -94,7 +94,8 @@ export class PrismaEvidenceRepository implements IEvidenceRepository {
         ? (record.headers as Record<string, string>)
         : undefined;
 
-    return Evidence.create({
+    // PA-09: reidratação sem reexecutar validações de criação nem o secretDetector
+    return Evidence.restore({
       id: record.id,
       occurrenceId: record.occurrenceId,
       type: record.type,

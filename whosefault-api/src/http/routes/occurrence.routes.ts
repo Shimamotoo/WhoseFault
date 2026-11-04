@@ -141,7 +141,7 @@ const occurrenceRoutes: FastifyPluginAsync<OccurrenceRoutesOptions> = async (app
         apiName?: string;
         url?: string;
         method?: HttpMethod;
-        description?: string;
+        description?: string | null;
       };
 
       const result = await updateOccurrence(

@@ -97,4 +97,39 @@ describe('SPEC-03: Detector de Dados Sensíveis (PatternSecretDetector)', () => 
       'apagar ou editar a evidência no WhoseFault não invalida uma credencial que já tenha sido exposta',
     );
   });
+
+  describe('PA-08: connection strings de banco/serviços', () => {
+    it.each([
+      'redis://localhost:6379',
+      'postgres://db.internal:5432/app',
+      'mongodb://mongo-internal:27017/app',
+      'amqp://rabbitmq:5672',
+      'Falha ao conectar em redis://redis-broker:6380/2 após 3 tentativas',
+    ])('deve permitir URI sem credenciais embutidas: %s', (content) => {
+      const result = detector.inspect({ content });
+      expect(result.hasSecrets).toBe(false);
+      expect(() => detector.assertNoSecrets({ content })).not.toThrow();
+    });
+
+    it.each([
+      'postgres://dbuser:dbpass123@localhost:5432/prod',
+      'redis://:mysecret@localhost:6379',
+      'mongodb+srv://admin:S3nh4Forte@cluster0.mongodb.net/app',
+      'Erro: amqps://guest:guestpass@broker.internal:5671 recusou a conexão',
+    ])('deve bloquear URI com credenciais embutidas: %s', (content) => {
+      const result = detector.inspect({ content });
+      expect(result.hasSecrets).toBe(true);
+      expect(result.detectedFields).toContain('content');
+      expect(() => detector.assertNoSecrets({ content })).toThrow(SensitiveDataDetectedError);
+    });
+
+    it.each([
+      'postgres://dbuser:***@localhost:5432/prod',
+      'redis://:[REDACTED]@localhost:6379',
+      'mysql://root:<senha>@db.internal:3306/app',
+    ])('deve permitir URI com senha mascarada: %s', (content) => {
+      const result = detector.inspect({ content });
+      expect(result.hasSecrets).toBe(false);
+    });
+  });
 });

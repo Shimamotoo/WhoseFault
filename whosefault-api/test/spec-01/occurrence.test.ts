@@ -297,6 +297,36 @@ describe('SPEC-01 – Registrar Ocorrência', () => {
       expect(body.description).toBe('Descrição editada.');
       expect(stubTitleQueue.jobs).toHaveLength(0);
     });
+
+    it('PA-05: deve preservar a descrição existente ao editar apenas outros campos (description omitida)', async () => {
+      const { id } = await criarOcorrencia({ description: 'Descrição que deve permanecer.' });
+      stubTitleQueue.clear();
+
+      const response = await patch(`/api/occurrences/${id}`, {
+        method: 'PUT',
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.method).toBe('PUT');
+      expect(body.description).toBe('Descrição que deve permanecer.');
+      expect(stubTitleQueue.jobs).toHaveLength(0);
+
+      const stored = await occurrenceRepository.findById(id);
+      expect(stored?.description).toBe('Descrição que deve permanecer.');
+    });
+
+    it('PA-05: deve limpar a descrição quando enviada explicitamente como null', async () => {
+      const { id } = await criarOcorrencia({ description: 'Descrição a ser removida.' });
+
+      const response = await patch(`/api/occurrences/${id}`, {
+        description: null,
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.description).toBeUndefined();
+    });
   });
 
   // ── Nova tentativa de título ─────────────────────────────────────────────
