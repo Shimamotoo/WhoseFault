@@ -64,6 +64,8 @@ As decisões arquiteturais aprovadas devem ser respeitadas durante a implementa�
 - [`ADR-002 — Persistência e integridade dos dados`](docs/adr/ADR-002-persistencia.md)
 - [`ADR-003 — Integração com IA`](docs/adr/ADR-003-integracao-com-ia.md)
 - [`ADR-004 — Segurança e tratamento de dados`](docs/adr/ADR-004-seguranca-e-dados.md)
+- [`ADR-005 — Autenticação híbrida e isolamento multi-inquilino`](docs/adr/ADR-005-autenticacao-e-identidade.md)
+- [`ADR-006 — Exposição do WhoseFault via Model Context Protocol (MCP)`](docs/adr/ADR-006-mcp-server.md)
 
 ### Orientações para agentes de IA
 
