@@ -45,6 +45,7 @@ O backend segue as diretrizes do [ADR-001](whosefault-docs/docs/adr/ADR-001-arqu
 - [ADR-003 — Integração com IA e isolamento do provedor](whosefault-docs/docs/adr/ADR-003-integracao-com-ia.md)
 - [ADR-004 — Segurança e tratamento de dados sensíveis (Secret Guard)](whosefault-docs/docs/adr/ADR-004-seguranca-e-dados.md)
 - [ADR-005 — Autenticação híbrida (Firebase Auth) e isolamento multi-inquilino](whosefault-docs/docs/adr/ADR-005-autenticacao-e-identidade.md)
+- [ADR-006 — Exposição do WhoseFault via Model Context Protocol (MCP)](whosefault-docs/docs/adr/ADR-006-mcp-server.md)
 
 ---
 
