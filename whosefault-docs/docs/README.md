@@ -53,6 +53,7 @@ As decisões arquiteturais aprovadas devem ser respeitadas durante a implementa�
 - [SPEC-06 — Gerenciar Identidade](specs/SPEC-06-gerenciar-identidade.md)
 - [SPEC-07 — Processamento Assíncrono de Títulos com Mensageria](specs/SPEC-07-geracao-assincrona-de-titulos.md)
 - [SPEC-08 — Evidências em Foto](specs/SPEC-08-evidencias-em-foto.md)
+- [SPEC-09 — Servidor MCP (whosefault-mcp)](specs/SPEC-09-servidor-mcp.md)
 
 ### Modelo de domínio
 
