@@ -1,0 +1,34 @@
+{
+  "name": "whosefault-mcp",
+  "version": "1.0.0",
+  "description": "Servidor MCP (stdio) para o WhoseFault",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "whosefault-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "mcp",
+    "modelcontextprotocol",
+    "whosefault"
+  ],
+  "license": "ISC",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "vitest": "^5.0.5"
+  }
+}

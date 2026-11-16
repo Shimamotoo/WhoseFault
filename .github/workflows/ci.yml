@@ -42,6 +42,7 @@ jobs:
           cache-dependency-path: |
             whosefault-api/package-lock.json
             whosefault-web/package-lock.json
+            whosefault-mcp/package-lock.json
 
       - name: Validar API (Migrações, Typecheck e Testes Completos)
         env:
@@ -53,6 +54,14 @@ jobs:
           npx prisma generate
           npx prisma migrate deploy
           npm run typecheck
+          npm test
+
+      - name: Validar Servidor MCP (Typecheck, Build e Testes Unitários)
+        run: |
+          cd whosefault-mcp
+          npm ci
+          npm run typecheck
+          npm run build
           npm test
 
       - name: Validar Frontend (Build)

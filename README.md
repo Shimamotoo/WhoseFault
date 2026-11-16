@@ -27,6 +27,7 @@ O projeto está organizado como um monorepo com três pacotes principais:
 | [`whosefault-docs`](whosefault-docs/) | Documentação de engenharia, especificações (SPECs), decisões arquiteturais (ADRs) e modelo de domínio. | Markdown / SDD |
 | [`whosefault-api`](whosefault-api/) | Backend da aplicação com arquitetura em camadas e regras de negócio isoladas. | Node.js, Fastify, TypeScript, Prisma, Vitest |
 | [`whosefault-web`](whosefault-web/) | Frontend da aplicação integrado à API e ao banco relacional. | React 19, TypeScript, Vite, Tailwind CSS, Radix UI |
+| [`whosefault-mcp`](whosefault-mcp/) | Servidor MCP (`stdio`) para integração com IDEs e agentes de IA. | Node.js, TypeScript, Model Context Protocol SDK, Zod, Vitest |
 
 ---
 
@@ -62,6 +63,7 @@ Todas as especificações previstas para a V1 foram implementadas e validadas:
 | [Modelo de Domínio](whosefault-docs/docs/domain/modelo-de-dominio.md) | Entidades puras `User`, `Occurrence`, `Evidence` e `Diagnosis` desacopladas de infraestrutura. | **Atualizado (v1.1)** |
 | [SPEC-05 — Login com Firebase](whosefault-docs/docs/specs/SPEC-05-firebase-auth.md) | Autenticação com conta Google, Modo Visitante anônimo e promoção de conta (*Account Linking*). | **Em Implementação** |
 | [SPEC-06 — Gerenciar Identidade](whosefault-docs/docs/specs/SPEC-06-gerenciar-identidade.md) | Validação JWT, tabela de usuários, isolamento multi-inquilino e expurgo de visitantes após 30 dias. | **Em Implementação** |
+| [SPEC-09 — Servidor MCP](whosefault-docs/docs/specs/SPEC-09-servidor-mcp.md) | Servidor MCP (`stdio`) com 6 Tools, 2 Resources e 1 Prompt integrado à API REST. | **100% Concluído** |
 
 ---
 
@@ -129,6 +131,29 @@ Acesse a interface gráfica no navegador em **`http://localhost:5173`**.
 
 ---
 
+### 4. Configurar e Executar o Servidor MCP (`whosefault-mcp`)
+
+Em outro terminal:
+
+```bash
+# Entrar no diretório do servidor MCP
+cd whosefault-mcp
+
+# Configurar variáveis de ambiente (copiar o exemplo)
+cp .env.example .env
+
+# Compilar o código TypeScript
+npm run build
+
+# Executar a suíte de testes unitários do MCP (16 testes offline)
+npm test
+
+# Iniciar o servidor MCP no modo stdio
+WHOSEFAULT_API_TOKEN="seu-token-bearer" npm start
+```
+
+---
+
 ## 🧪 Comandos Úteis e Validação de Qualidade
 
 ### Backend (`whosefault-api`)
@@ -140,6 +165,11 @@ Acesse a interface gráfica no navegador em **`http://localhost:5173`**.
 ### Frontend (`whosefault-web`)
 - `npm run build`: Compila o TypeScript e gera o bundle de produção Vite.
 - `npm run lint`: Checagem estática de código com Oxlint.
+
+### Servidor MCP (`whosefault-mcp`)
+- `npm test`: Executa todos os testes unitários (Tools, Resources, Prompts e transporte `stdio`).
+- `npm run typecheck`: Validação estrita de tipos com `tsc --noEmit`.
+- `npm run build`: Compila o TypeScript para a pasta `dist/`.
 
 ---
 
